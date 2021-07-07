@@ -189,6 +189,11 @@ const CHAR16* GetPixelFormatUnicode(EFI_GRAPHICS_PIXEL_FORMAT fmt) {
   }
 }
 
+
+void Halt(void) {
+  while (1) __asm__("hlt");
+}
+
 /* UEFI:OSとファームウェアを仲介するソフトウェアインターフェース */
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
@@ -266,16 +271,22 @@ EFI_STATUS EFIAPI UefiMain(
   // AllocateAddressは指定したアドレスに確保する
   // UEFIにおける1ページの大きさは4KiB=0x1000 byte
   // ページ数=(kernel_file_size + 0xfff) / 0x1000
-  gBS->AllocatePages(
+  EFI_STATUS status;
+  status = gBS->AllocatePages(
                      AllocateAddress, EfiLoaderData,
                      (kernel_file_size + 0xfff) / 0x1000, &kernel_base_addr);
+
+  if (EFI_ERROR(status)) {
+    Print(L"failed to allocate pages: %r", status);
+    Halt();
+  }
+
   // メモリ確保ができたので、読み込み
   kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
   Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
   // (:3 kernel.elf 読み込み end
 
   // (:3 UEFI BIOSのブートサービスを停止 begin
-  EFI_STATUS status;
   status = gBS->ExitBootServices(image_handle, memmap.map_key);
   if (EFI_ERROR(status)) {
     status = GetMemoryMap(&memmap);
