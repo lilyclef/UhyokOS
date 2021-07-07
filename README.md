@@ -52,3 +52,15 @@ $ $HOME/osbook/devenv/run_qemu.sh $HOME/edk2/Build/UhyokoLoaderX64/DEBUG_CLANGPD
 - https://qiita.com/yamoridon/items/4905765cc6e4f320c9b5
 - eval clang++ $CPPFLAGS -O2 --target=x86_64-elf -fno-exceptions -ffreestanding -c main.cpp
 - eval ld.lld $LDFLAGS --entry=KernelMain -z norelro --image-base 0x100000 --static -o kernel.elf -z separate-code main.o
+
+
+## Day 4
+- Makefileを作る。
+- https://kaworu.jpn.org/c/C%E8%A8%80%E8%AA%9E%E3%81%AE%E3%82%A4%E3%83%B3%E3%82%AF%E3%83%AB%E3%83%BC%E3%83%89%E3%82%AC%E3%83%BC%E3%83%89%E3%81%AFpragma_once%E3%82%92%E4%BD%BF%E3%81%86
+- https://en.wikipedia.org/wiki/Pragma_once
+- インクルードガード初めて知った
+
+- 描画
+  - ノリで円を描画させてみた
+  - ブレゼンハムのアルゴリズムによる円周の描画というものがあるらしい。
+  - https://www.kushiro-ct.ac.jp/yanagawa/cg-2015/1021/index.html
