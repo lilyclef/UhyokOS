@@ -64,3 +64,34 @@ $ $HOME/osbook/devenv/run_qemu.sh $HOME/edk2/Build/UhyokoLoaderX64/DEBUG_CLANGPD
   - ノリで円を描画させてみた
   - ブレゼンハムのアルゴリズムによる円周の描画というものがあるらしい。
   - https://www.kushiro-ct.ac.jp/yanagawa/cg-2015/1021/index.html
+
+
+```
+readelf -l kernel.elf
+
+Elf file type is EXEC (Executable file)
+Entry point 0x101020
+There are 5 program headers, starting at offset 64
+
+Program Headers:
+  Type           Offset             VirtAddr           PhysAddr
+                 FileSiz            MemSiz              Flags  Align
+  PHDR           0x0000000000000040 0x0000000000100040 0x0000000000100040
+                 0x0000000000000118 0x0000000000000118  R      0x8
+  LOAD           0x0000000000000000 0x0000000000100000 0x0000000000100000
+                 0x00000000000001a8 0x00000000000001a8  R      0x1000
+  LOAD           0x0000000000001000 0x0000000000101000 0x0000000000101000
+                 0x00000000000001d9 0x00000000000001d9  R E    0x1000
+  LOAD           0x0000000000002000 0x0000000000102000 0x0000000000102000
+                 0x0000000000000000 0x0000000000000018  RW     0x1000
+  GNU_STACK      0x0000000000000000 0x0000000000000000 0x0000000000000000
+                 0x0000000000000000 0x0000000000000000  RW     0x0
+
+ Section to Segment mapping:
+  Segment Sections...
+   00
+   01     .rodata
+   02     .text
+   03     .bss
+   04
+```

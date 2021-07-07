@@ -3,6 +3,7 @@
 #include  <Library/UefiBootServicesTableLib.h>
 #include  <Library/PrintLib.h>
 #include  <Library/MemoryAllocationLib.h>
+#include  <Library/BaseMemoryLib.h>
 
 #include  <Protocol/LoadedImage.h>
 #include  <Protocol/SimpleFileSystem.h>
@@ -11,6 +12,7 @@
 #include  <Guid/FileInfo.h>
 
 #include  "frame_buffer_config.hpp"
+#include  "elf.hpp"
 
 /* メモリマップという構造体を作り、メモリの状態を保管する */
 struct MemoryMap {
@@ -196,6 +198,33 @@ void Halt(void) {
   while (1) __asm__("hlt");
 }
 
+// アドレス範囲を計算する
+void CalcLoadAddressRange(Elf64_Ehdr* ehdr, UINT64* first, UINT64* last) {
+  Elf64_Phdr* phdr = (Elf64_Phdr*)((UINT64)ehdr + ehdr->e_phoff);
+  *first = MAX_UINT64;
+  *last = 0;
+  for (Elf64_Half i = 0; i < ehdr->e_phnum; ++i) {
+    if (phdr[i].p_type != PT_LOAD) continue;
+    *first = MIN(*first, phdr[i].p_vaddr);
+    *last = MAX(*last, phdr[i].p_vaddr + phdr[i].p_memsz);
+  }
+}
+
+// これわかんないかも
+void CopyLoadSegments(Elf64_Ehdr* ehdr) {
+  Elf64_Phdr* phdr = (Elf64_Phdr*)((UINT64)ehdr + ehdr->e_phoff);
+  for (Elf64_Half i = 0; i < ehdr->e_phnum; ++i) {
+    if (phdr[i].p_type != PT_LOAD) continue;
+
+    UINT64 segm_in_file = (UINT64)ehdr + phdr[i].p_offset;
+    CopyMem((VOID*)phdr[i].p_vaddr, (VOID*)segm_in_file, phdr[i].p_filesz);
+
+    UINTN remain_bytes = phdr[i].p_memsz - phdr[i].p_filesz;
+    // SetMemとCopyMemは #include  <Library/BaseMemoryLib.h> から
+    SetMem((VOID*)(phdr[i].p_vaddr + phdr[i].p_filesz), remain_bytes, 0);
+  }
+}
+
 /* UEFI:OSとファームウェアを仲介するソフトウェアインターフェース */
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
@@ -264,29 +293,59 @@ EFI_STATUS EFIAPI UefiMain(
   kernel_file->GetInfo(
                        kernel_file, &gEfiFileInfoGuid,
                        &file_info_size, file_info_buffer);
+
+  // (:3 カーネルの読み込み begin
   EFI_FILE_INFO* file_info = (EFI_FILE_INFO*) file_info_buffer;
   UINTN kernel_file_size = file_info->FileSize;
 
-  EFI_PHYSICAL_ADDRESS kernel_base_addr = 0x100000;
+  VOID* kernel_buffer;
+  EFI_STATUS status;
+
+  // AllocatePagesと異なり、AllocatePoolではバイト単位でメモリを確保できる。
+  status = gBS->AllocatePool(EfiLoaderData, kernel_file_size, &kernel_buffer);
+  if (EFI_ERROR(status)) {
+    Print(L"failed to allocate pool: %r\n", status);
+    Halt();
+  }
+  status = kernel_file->Read(kernel_file, &kernel_file_size, kernel_buffer);
+  if (EFI_ERROR(status)) {
+    Print(L"error: %r", status);
+    Halt();
+  }
+  // (:3 カーネルの読み込み end
 
   // メモリ確保のモードは3種類ある
   // AllocateAddressは指定したアドレスに確保する
   // UEFIにおける1ページの大きさは4KiB=0x1000 byte
   // ページ数=(kernel_file_size + 0xfff) / 0x1000
-  EFI_STATUS status;
+
+  // (:3 ページのアロケーション begin
+  Elf64_Ehdr* kernel_ehdr = (Elf64_Ehdr*)kernel_buffer;
+  UINT64 kernel_first_addr, kernel_last_addr;
+  CalcLoadAddressRange(kernel_ehdr, &kernel_first_addr, &kernel_last_addr);
+  UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;
   status = gBS->AllocatePages(
                      AllocateAddress, EfiLoaderData,
-                     (kernel_file_size + 0xfff) / 0x1000, &kernel_base_addr);
+                     num_pages, &kernel_first_addr);
 
   if (EFI_ERROR(status)) {
     Print(L"failed to allocate pages: %r", status);
     Halt();
   }
+  // (:3 ページのアロケーション end
 
-  // メモリ確保ができたので、読み込み
-  kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
-  Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
-  // (:3 kernel.elf 読み込み end
+  // (:3 セグメントのコピー begin
+  // 一時領域から最終目的地へLOADセグメントをコピー
+  CopyLoadSegments(kernel_ehdr);
+  Print(L"Kernel: 0x%0lx - 0x%0lx\n", kernel_first_addr, kernel_last_addr);
+
+  // 一時領域の開放
+  status = gBS->FreePool(kernel_buffer);
+  if (EFI_ERROR(status)) {
+    Print(L"failed to free pool: %r\n", status);
+    Halt();
+  }
+  // (:3 セグメントのコピー end
 
   // (:3 UEFI BIOSのブートサービスを停止 begin
   status = gBS->ExitBootServices(image_handle, memmap.map_key);
@@ -305,7 +364,7 @@ EFI_STATUS EFIAPI UefiMain(
   // (:3 UEFI BIOSのブートサービスを停止 end
 
   // (:3 カーネル呼び出し begin
-  UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
+  UINT64 entry_addr = *(UINT64*)(kernel_first_addr + 24);
 
   struct FrameBufferConfig config = {
     (UINT8*)gop->Mode->FrameBufferBase,
