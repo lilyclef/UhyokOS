@@ -31,3 +31,19 @@ Index, Type, Type(name), PhysicalStart, NumberOfPages, Attribute
 5, A, EfiACPIMemoryNVS, 00810000, F0, F
 ...
 ```
+
+## Day 3
+- カーネル作成
+```c
+$ cat main.cpp
+extern "C" void KernelMain() {
+  while (1) __asm__("hlt");
+}
+$ clang++ -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone -fno-expections -fno-rtti -std=c++17 -c main.cpp
+$ ld.lld --entry KernelMain -z norelro --image-base 0x100000 --static -o kernel.elf main.o
+```
+
+- QEMU起動コマンド変更
+$ $HOME/osbook/devenv/run_qemu.sh $HOME/edk2/Build/UhyokoLoaderX64/DEBUG_CLANGPDB/X64/Loader.efi $HOME/workspace/UhyokOS/kernel/kernel.elf
+
+- エントリーポイントが教科書と違うアドレスだが、大丈夫なのかな？？
