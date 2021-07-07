@@ -212,7 +212,6 @@ EFI_STATUS EFIAPI UefiMain(
 
   // https://edk2-docs.gitbook.io/edk-ii-c-coding-standards-specification/5_source_files/56_declarations_and_types
   // UINTN:Unsigned value of native width. (4 bytes on IA-32, 8 bytes on X64, and 8 bytes on the Intel(R) Itanium(R) processor family)
-
   UINT8* frame_buffer = (UINT8*)gop->Mode->FrameBufferBase;
   for (UINTN i = 0; i < gop->Mode->FrameBufferSize; ++i) {
     frame_buffer[i] = 255;
@@ -295,9 +294,9 @@ EFI_STATUS EFIAPI UefiMain(
   // (:3 カーネル呼び出し begin
   UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
 
-  typedef void EntryPointType(void);
+  typedef void __attribute__((sysv_abi)) EntryPointType(UINT64, UINT64);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
-  entry_point();
+  entry_point(gop->Mode->FrameBufferBase, gop->Mode->FrameBufferSize);
   Print(L"Kernel is called (:3 \n");
   // (:3 カーネル呼び出し end
 

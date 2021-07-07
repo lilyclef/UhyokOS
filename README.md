@@ -47,3 +47,7 @@ $ ld.lld --entry KernelMain -z norelro --image-base 0x100000 --static -o kernel.
 $ $HOME/osbook/devenv/run_qemu.sh $HOME/edk2/Build/UhyokoLoaderX64/DEBUG_CLANGPDB/X64/Loader.efi $HOME/workspace/UhyokOS/kernel/kernel.elf
 
 - エントリーポイントが教科書と違うアドレスだが、大丈夫なのかな？？
+
+- on Mac差分
+- https://qiita.com/yamoridon/items/4905765cc6e4f320c9b5
+- ld.lld $LDFLAGS --entry=KernelMain -z norelro --image-base 0x100000 --static -o kernel.elf -z separate-code main.o
