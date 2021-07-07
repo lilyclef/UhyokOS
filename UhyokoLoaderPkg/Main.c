@@ -6,6 +6,7 @@
 #include  <Protocol/SimpleFileSystem.h>
 #include  <Protocol/DiskIo2.h>
 #include  <Protocol/BlockIo.h>
+#include  <Guid/FileInfo.h>
 
 /* メモリマップという構造体を作り、メモリの状態を保管する */
 struct MemoryMap {
@@ -147,8 +148,12 @@ EFI_STATUS OpenRootDir(EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root) {
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE *system_table) {
-  Print(L"Hello, Mofumofu World! (:3 \n");
 
+  // (:3 とりあえずprint begin
+  Print(L"Hello, Mofumofu World! (:3 \n");
+  // (:3 とりあえずprint end
+
+  // (:3 メモリマップのプリント begin
   // memmap_bufを確保してみる
   CHAR8 memmap_buf[4096 * 4];
   struct MemoryMap memmap = {sizeof(memmap_buf), memmap_buf, 0, 0, 0, 0};
@@ -167,6 +172,64 @@ EFI_STATUS EFIAPI UefiMain(
 
   SaveMemoryMap(&memmap, memmap_file);
   memmap_file->Close(memmap_file);
+  // (:3 メモリマップのプリント end
+
+  // (:3 kernel.elf 読み込み begin
+  EFI_FILE_PROTOCOL* kernel_file;
+  root_dir->Open(
+                 root_dir, &kernel_file, L"\\kernel.elf",
+                 EFI_FILE_MODE_READ, 0);
+
+  // char16の12個分は\kernel.elf\0の12文字
+  UINTN file_info_size = sizeof(EFI_FILE_INFO) + sizeof(CHAR16) * 12;
+
+  UINT8 file_info_buffer[file_info_size];
+  kernel_file->GetInfo(
+                       kernel_file, &gEfiFileInfoGuid,
+                       &file_info_size, file_info_buffer);
+  EFI_FILE_INFO* file_info = (EFI_FILE_INFO*) file_info_buffer;
+  UINTN kernel_file_size = file_info->FileSize;
+
+  EFI_PHYSICAL_ADDRESS kernel_base_addr = 0x100000;
+
+  // メモリ確保のモードは3種類ある
+  // AllocateAddressは指定したアドレスに確保する
+  // UEFIにおける1ページの大きさは4KiB=0x1000 byte
+  // ページ数=(kernel_file_size + 0xfff) / 0x1000
+  gBS->AllocatePages(
+                     AllocateAddress, EfiLoaderData,
+                     (kernel_file_size + 0xfff) / 0x1000, &kernel_base_addr);
+  // メモリ確保ができたので、読み込み
+  kernel_file->Read(kernel_file, &kernel_file_size, (VOID*)kernel_base_addr);
+  Print(L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
+  // (:3 kernel.elf 読み込み end
+
+  // (:3 UEFI BIOSのブートサービスを停止 begin
+  EFI_STATUS status;
+  status = gBS->ExitBootServices(image_handle, memmap.map_key);
+  if (EFI_ERROR(status)) {
+    status = GetMemoryMap(&memmap);
+    if (EFI_ERROR(status)) {
+      Print(L"Failed to get memory map: %r\n", status);
+      while(1);
+    }
+    status = gBS->ExitBootServices(image_handle, memmap.map_key);
+    if (EFI_ERROR(status)) {
+      Print(L"Could not exit boot service: %r\n", status);
+      while(1);
+    }
+  }
+  // (:3 UEFI BIOSのブートサービスを停止 end
+
+  // (:3 カーネル呼び出し begin
+  UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
+
+  typedef void EntryPointType(void);
+  EntryPointType* entry_point = (EntryPointType*)entry_addr;
+  entry_point();
+  // (:3 カーネル呼び出し end
+
+  Print(L"Kernel is called (:3 \n");
 
   while (1);
   return EFI_SUCCESS;
