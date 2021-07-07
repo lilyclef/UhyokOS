@@ -2,6 +2,8 @@
 #include  <Library/UefiLib.h>
 #include  <Library/UefiBootServicesTableLib.h>
 #include  <Library/PrintLib.h>
+#include  <Library/MemoryAllocationLib.h>
+
 #include  <Protocol/LoadedImage.h>
 #include  <Protocol/SimpleFileSystem.h>
 #include  <Protocol/DiskIo2.h>
@@ -142,15 +144,83 @@ EFI_STATUS OpenRootDir(EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root) {
   return EFI_SUCCESS;
 }
 
+// https://edk2-docs.gitbook.io/edk-ii-uefi-driver-writer-s-guide/5_uefi_services/51_services_that_uefi_drivers_commonly_use/513_handle_database_and_protocol_services
 
+EFI_STATUS OpenGOP(EFI_HANDLE image_handle,
+                   EFI_GRAPHICS_OUTPUT_PROTOCOL** gop) {
+  UINTN num_gop_handles = 0;
+  EFI_HANDLE* gop_handles = NULL;
+  gBS->LocateHandleBuffer(
+      ByProtocol,
+      &gEfiGraphicsOutputProtocolGuid,
+      NULL,
+      &num_gop_handles,
+      &gop_handles);
+
+  gBS->OpenProtocol(
+      gop_handles[0],
+      &gEfiGraphicsOutputProtocolGuid,
+      (VOID**)gop,
+      image_handle,
+      NULL,
+      EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+
+  // FreePoolは#include  <Library/MemoryAllocationLib.h>が必要
+  // https://edk2-docs.gitbook.io/edk-ii-uefi-driver-writer-s-guide/5_uefi_services/51_services_that_uefi_drivers_commonly_use/511_memory_allocation_services
+  FreePool(gop_handles);
+
+  return EFI_SUCCESS;
+}
+
+const CHAR16* GetPixelFormatUnicode(EFI_GRAPHICS_PIXEL_FORMAT fmt) {
+  switch (fmt) {
+    case PixelRedGreenBlueReserved8BitPerColor:
+      return L"PixelRedGreenBlueReserved8BitPerColor";
+    case PixelBlueGreenRedReserved8BitPerColor:
+      return L"PixelBlueGreenRedReserved8BitPerColor";
+    case PixelBitMask:
+      return L"PixelBitMask";
+    case PixelBltOnly:
+      return L"PixelBltOnly";
+    case PixelFormatMax:
+      return L"PixelFormatMax";
+    default:
+      return L"InvalidPixelFormat";
+  }
+}
 
 /* UEFI:OSとファームウェアを仲介するソフトウェアインターフェース */
 EFI_STATUS EFIAPI UefiMain(
     EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE *system_table) {
+  // ブートローダから画面描画
+  // 画面描画の関数は早めに書かないと上書きされる
+  // (:3 GOP習得&画面描画 begin
+  EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
+
+  // OpenGOP・GetPixelFormatUnicodeは自作関数
+  OpenGOP(image_handle, &gop);
+  Print(L"Resolution: %ux%u, Pixel Format: %s, %u pixels/line\n",
+        gop->Mode->Info->HorizontalResolution,
+        gop->Mode->Info->VerticalResolution,
+        GetPixelFormatUnicode(gop->Mode->Info->PixelFormat),
+        gop->Mode->Info->PixelsPerScanLine);
+  Print(L"Frame Buffer: 0x%0lx - 0x%0lx, Size: %lu bytes\n",
+        gop->Mode->FrameBufferBase,
+        gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize,
+        gop->Mode->FrameBufferSize);
+
+  // https://edk2-docs.gitbook.io/edk-ii-c-coding-standards-specification/5_source_files/56_declarations_and_types
+  // UINTN:Unsigned value of native width. (4 bytes on IA-32, 8 bytes on X64, and 8 bytes on the Intel(R) Itanium(R) processor family)
+
+  UINT8* frame_buffer = (UINT8*)gop->Mode->FrameBufferBase;
+  for (UINTN i = 0; i < gop->Mode->FrameBufferSize; ++i) {
+    frame_buffer[i] = 255;
+  }
+  // (:3 GOP習得&画面描画 end
 
   // (:3 とりあえずprint begin
-  Print(L"Hello, Mofumofu World! (:3 \n");
+  Print(L"Hello, Mofumofu World!! (:3 \n");
   // (:3 とりあえずprint end
 
   // (:3 メモリマップのプリント begin
@@ -173,6 +243,7 @@ EFI_STATUS EFIAPI UefiMain(
   SaveMemoryMap(&memmap, memmap_file);
   memmap_file->Close(memmap_file);
   // (:3 メモリマップのプリント end
+
 
   // (:3 kernel.elf 読み込み begin
   EFI_FILE_PROTOCOL* kernel_file;
@@ -227,9 +298,9 @@ EFI_STATUS EFIAPI UefiMain(
   typedef void EntryPointType(void);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
   entry_point();
+  Print(L"Kernel is called (:3 \n");
   // (:3 カーネル呼び出し end
 
-  Print(L"Kernel is called (:3 \n");
 
   while (1);
   return EFI_SUCCESS;
