@@ -50,4 +50,5 @@ $ $HOME/osbook/devenv/run_qemu.sh $HOME/edk2/Build/UhyokoLoaderX64/DEBUG_CLANGPD
 
 - on Mac差分
 - https://qiita.com/yamoridon/items/4905765cc6e4f320c9b5
-- ld.lld $LDFLAGS --entry=KernelMain -z norelro --image-base 0x100000 --static -o kernel.elf -z separate-code main.o
+- eval clang++ $CPPFLAGS -O2 --target=x86_64-elf -fno-exceptions -ffreestanding -c main.cpp
+- eval ld.lld $LDFLAGS --entry=KernelMain -z norelro --image-base 0x100000 --static -o kernel.elf -z separate-code main.o
