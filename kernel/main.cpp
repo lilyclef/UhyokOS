@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstddef>
+#include <cstdio>
 #include "graphics.hpp"
 #include "font.hpp"
 
@@ -50,6 +51,10 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
       }
     }
   }
+  char buf[128];
+  sprintf(buf, "1 + 2 = %d", 1 + 2);
+  WriteString(*pixel_writer, 200, 82, buf, {0, 0, 0});
+
   WriteString(*pixel_writer, 100, 100, "(:3", {0, 0, 0});
   int i = 0;
   for (char c = '!'; c <= '~'; ++c, ++i) {
