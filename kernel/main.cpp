@@ -1,55 +1,6 @@
 #include <cstdint>
 #include <cstddef>
-
-#include "frame_buffer_config.hpp"
-
-struct PixelColor {
-  uint8_t r, g, b;
-};
-
-// (:3 PixelWriter begin
-class PixelWriter {
-public:
-  PixelWriter(const FrameBufferConfig& config) : config_{config} {
-  }
-  virtual ~PixelWriter() = default;
-  // プロトタイプ宣言の後ろに=0 : 純粋仮想関数 インターフェース的な
-  virtual void Write(int x, int y, const PixelColor& c) = 0;
-protected:
-  uint8_t* PixelAt(int x, int y) {
-    return config_.frame_buffer + 4 * (config_.pixels_per_scan_line * y + x);
-  }
-private:
-  const FrameBufferConfig& config_;
-};
-// (:3 PixelWriterClass end
-
-
-// インターフェースっぽく書かれたクラスを継承する子クラス=>使えるように。
-// RGB表記
-class RGBResv8BitPerColorPixelWriter : public PixelWriter {
-public:
-  // 親クラスのコンストラクタを子のコンストラクタとして扱える。
-  using PixelWriter::PixelWriter;
-  virtual void Write(int x, int y, const PixelColor& c) override {
-    auto p = PixelAt(x, y);
-    p[0] = c.r;
-    p[1] = c.g;
-    p[2] = c.b;
-  }
-};
-
-// BGR表記
-class BGRResv8BitPerColorPixelWriter : public PixelWriter {
-public:
-  using PixelWriter::PixelWriter;
-  virtual void Write(int x, int y, const PixelColor& c) override {
-    auto p = PixelAt(x, y);
-    p[0] = c.b;
-    p[1] = c.g;
-    p[2] = c.r;
-  }
-};
+#include "graphics.hpp"
 
 // (:3 配置newを設定するための準備 begin
 void* operator new(size_t size, void* buf) {
@@ -64,6 +15,38 @@ void operator delete(void* obj) noexcept {
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 // (:3 グローバル変数 end
+
+const uint8_t kFontA[16] = {
+  0b00000000, //
+  0b00011000, //    **
+  0b00011000, //    **
+  0b00011000, //    **
+  0b00011000, //    **
+  0b00100100, //   *  *
+  0b00100100, //   *  *
+  0b00100100, //   *  *
+  0b00100100, //   *  *
+  0b01111110, //  ******
+  0b01000010, //  *    *
+  0b01000010, //  *    *
+  0b01000010, //  *    *
+  0b11100111, // ***  ***
+  0b00000000, //
+  0b00000000, //
+};
+
+void WriteAscii(PixelWriter& writer, int x, int y, char c, const PixelColor& color) {
+  if (c != 'A') {
+    return;
+  }
+  for (int dy = 0; dy < 16; ++dy) {
+    for (int dx = 0; dx < 8; ++dx) {
+      if ((kFontA[dy] << dx) & 0x80u) {
+        writer.Write(x + dx, y + dy, color);
+      }
+    }
+  }
+}
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -97,5 +80,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
       }
     }
   }
+  WriteAscii(*pixel_writer, 50, 50, 'A', {0, 0, 0});
+  WriteAscii(*pixel_writer, 58, 50, 'A', {0, 0, 0});
   while (1) __asm__("hlt");
 }
