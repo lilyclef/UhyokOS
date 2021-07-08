@@ -1,8 +1,11 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
+
+#include "frame_buffer_config.hpp"
 #include "graphics.hpp"
 #include "font.hpp"
+#include "console.hpp"
 
 // (:3 配置newを設定するための準備 begin
 void* operator new(size_t size, void* buf) {
@@ -59,6 +62,13 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   int i = 0;
   for (char c = '!'; c <= '~'; ++c, ++i) {
     WriteAscii(*pixel_writer, 8 * i, 50, c, {0, 0, 0});
+  }
+  Console console{*pixel_writer, {0, 0, 0}, {255, 255, 255}};
+
+  char buf2[128];
+  for (int i = 0; i < 27; ++i) {
+    sprintf(buf2, "line %d\n", i);
+    console.PutString(buf2);
   }
   while (1) __asm__("hlt");
 }
