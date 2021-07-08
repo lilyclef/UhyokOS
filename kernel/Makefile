@@ -1,5 +1,5 @@
 TARGET = kernel.elf
-OBJS = main.o graphics.o font.o
+OBJS = main.o graphics.o font.o hankaku.o
 
 CXXFLAGS += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone \
             -fno-exceptions -fno-rtti -std=c++17
@@ -18,3 +18,9 @@ kernel.elf: $(OBJS) Makefile
 
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -c $<
+
+hankaku.bin: hankaku.txt
+	~/workspace/mikanos/tools/makefont.py -o $@ $<
+
+hankaku.o: hankaku.bin
+	objcopy -I binary -O elf64-x86-64 -B i386:x86-64 $< $@
