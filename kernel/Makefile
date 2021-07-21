@@ -1,7 +1,7 @@
 TARGET = kernel.elf
 OBJS = main.o graphics.o font.o hankaku.o newlib_support.o console.o pci.o asmfunc.o \
-       usb/memory.o usb/xhci/ring.o usb/xhci/trb.o usb/xhci/xhci.o \
-       usb/xhci/port.o usb/xhci/device.o usb/xhci/devmgr.o
+			usb/memory.o usb/device.o usb/xhci/ring.o usb/xhci/trb.o usb/xhci/xhci.o \
+			usb/xhci/port.o usb/xhci/device.o usb/xhci/devmgr.o
 
 CPPFLAGS += -I.
 CFLAGS   += -O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone
