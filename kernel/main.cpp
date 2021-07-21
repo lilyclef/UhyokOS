@@ -6,11 +6,12 @@
 #include "graphics.hpp"
 #include "font.hpp"
 #include "console.hpp"
+#include "pci.hpp"
 
 // (:3 配置newを設定するための準備 begin
-void* operator new(size_t size, void* buf) {
+/*void* operator new(size_t size, void* buf) {
   return buf;
-}
+  }*/
 
 void operator delete(void* obj) noexcept {
 }
@@ -121,12 +122,18 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }
     }*/
 
+  auto err = pci::ScanAllBus();
+  printk("ScanAllBus: %s\n", err.Name());
 
-  char buf2[128];
-  for (int i = 0; i < 27; ++i) {
-    sprintf(buf2, "line %d\n", i);
-    console->PutString(buf2);
+  for (int i = 0; i < pci::num_device; ++i) {
+    const auto& dev = pci::devices[i];
+    auto vendor_id = pci::ReadVendorId(dev.bus, dev.device, dev.function);
+    auto class_code = pci::ReadClassCode(dev.bus, dev.device, dev.function);
+    printk("%d.%d.%d: vend %04x, class %08x, head %02x\n",
+        dev.bus, dev.device, dev.function,
+        vendor_id, class_code, dev.header_type);
   }
+
   WriteString(*pixel_writer, 100, 100, "(:3", {0, 0, 0});
   for (int dy = 0; dy < kMouseCursorHeight; ++dy) {
     for (int dx = 0; dx < kMouseCursorWidth; ++dx) {
