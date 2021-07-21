@@ -2,11 +2,18 @@
 #include <cstddef>
 #include <cstdio>
 
+#include <numeric>
+#include <vector>
+
 #include "frame_buffer_config.hpp"
 #include "graphics.hpp"
 #include "font.hpp"
 #include "console.hpp"
 #include "pci.hpp"
+#include "usb/memory.hpp"
+#include "usb/xhci/xhci.hpp"
+#include "usb/xhci/trb.hpp"
+
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -132,21 +139,49 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     printk("%d.%d.%d: vend %04x, class %08x, head %02x\n",
         dev.bus, dev.device, dev.function,
         vendor_id, class_code, dev.header_type);
-
-    pci::Device* xhc_dev = nullptr;
-    for (int i = 0; i < pci::num_device; ++i) {
-      if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
-        // xHC
-        xhc_dev = &pci::devices[i];
-        break;
-      }
-    }
-
-    if (xhc_dev) {
-      printk("xHC has been found: %d.%d.%d\n",
-             xhc_dev->bus, xhc_dev->device, xhc_dev->function);
+  }
+  pci::Device* xhc_dev = nullptr;
+  for (int i = 0; i < pci::num_device; ++i) {
+    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
+      // xHC
+      xhc_dev = &pci::devices[i];
+      break;
     }
   }
+
+  if (xhc_dev) {
+    printk("xHC has been found: %d.%d.%d\n",
+           xhc_dev->bus, xhc_dev->device, xhc_dev->function);
+  }
+
+  std::vector<int, usb::Allocator<int>> v;
+  for (int i = 0; i <= 100; ++i) {
+    v.push_back(i);
+  }
+
+  printk("sum: %d\n", std::accumulate(v.begin(), v.end(), 0));
+
+  const auto bar = pci::ReadBar(*xhc_dev, 0);
+  //const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
+  const auto mmio_base = bar.value & ~static_cast<uint64_t>(0xf);
+  printk("xHC mmio_base = %08lx\n", mmio_base);
+  usb::xhci::Controller xhc{mmio_base};
+
+  xhc.Initialize();
+  xhc.Run();
+
+  printk("xHC start running\n");
+
+  for (int i = 1; i <= xhc.MaxPorts(); ++i) {
+    auto port = xhc.PortAt(i);
+    printk("Port %d: IsConnected=%d\n", i, port.IsConnected());
+  }
+
+  while (!xhc.PrimaryEventRing()->HasFront()) {
+  }
+
+  printk("xHC has least one event: %s\n", usb::xhci::kTRBTypeToName[
+      xhc.PrimaryEventRing()->Front()->bits.trb_type]);
 
   WriteString(*pixel_writer, 100, 100, "(:3", {0, 0, 0});
   for (int dy = 0; dy < kMouseCursorHeight; ++dy) {
