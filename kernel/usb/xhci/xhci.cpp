@@ -14,7 +14,7 @@ namespace {
     value.bits.ring_cycle_state = true;
     value.SetPointer(reinterpret_cast<uint64_t>(ring->Buffer()));
     crcr->Write(value);
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   template <class EventTRBType>
@@ -115,7 +115,7 @@ namespace {
     Device* dev = xhc.DeviceManager()->FindBySlot(slot_id);
     if (dev == nullptr) {
       if (debug) printk("failed to get a device: slot = %d\n", slot_id);
-      return Error::kInvalidSlotID;
+      return MAKE_ERROR(Error::kInvalidSlotID);
     }
 
     const auto ep0_dci = DeviceContextIndex(0, false);
@@ -139,7 +139,7 @@ namespace {
 
     if (auto sid = addr_dev_cmd_event.event_trb->bits.slot_id; sid != slot_id) {
       if (debug) printk("Unexpected slot id: %u\n", sid);
-      return Error::kInvalidSlotID;
+      return MAKE_ERROR(Error::kInvalidSlotID);
     }
     xhc.PrimaryEventRing()->Pop();
 
@@ -148,7 +148,7 @@ namespace {
              slot_id, port.Number(), slot_ctx->bits.speed);
     }
 
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   WithError<size_t> GetDescriptorWait(Controller& xhc, usb::xhci::Device& dev,
@@ -163,7 +163,7 @@ namespace {
     const auto transfer_length = event_trb->bits.trb_transfer_length;
     xhc.PrimaryEventRing()->Pop();
 
-    return {n - transfer_length, Error::kSuccess};
+    return {n - transfer_length, MAKE_ERROR(Error::kSuccess)};
   }
 }
 
@@ -229,7 +229,7 @@ namespace usb::xhci {
     usbcmd.bits.interrupter_enable = true;
     op_->USBCMD.Write(usbcmd);
 
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   Error Controller::Run() {
@@ -241,7 +241,7 @@ namespace usb::xhci {
 
     while (op_->USBSTS.Read().bits.host_controller_halted);
 
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   DoorbellRegister* Controller::DoorbellRegisterAt(uint8_t index) {
@@ -250,7 +250,7 @@ namespace usb::xhci {
 
   Error ConfigurePort(Controller& xhc, Port& port) {
     if (!port.IsConnected()) {
-      return Error::kPortNotConnected;
+      return MAKE_ERROR(Error::kPortNotConnected);
     }
 
     ResetPort(port);
@@ -262,7 +262,7 @@ namespace usb::xhci {
 
     auto dev = xhc.DeviceManager()->FindBySlot(slot_id);
     if (dev == nullptr) {
-      return Error::kInvalidSlotID;
+      return MAKE_ERROR(Error::kInvalidSlotID);
     }
 
     if (auto err = dev->StartInitialize()) {
@@ -275,7 +275,7 @@ namespace usb::xhci {
 
     auto device_desc = DescriptorDynamicCast<DeviceDescriptor>(dev->Buffer());
     if (device_desc == nullptr) {
-      return Error::kInvalidDescriptor;
+      return MAKE_ERROR(Error::kInvalidDescriptor);
     }
 
     uint8_t buf[256];
@@ -296,10 +296,10 @@ namespace usb::xhci {
       }
       auto config_desc = DescriptorDynamicCast<ConfigurationDescriptor>(buf);
       if (config_desc == nullptr) {
-        return Error::kInvalidDescriptor;
+        return MAKE_ERROR(Error::kInvalidDescriptor);
       }
       if (desc_length.value < config_desc->total_length) {
-        return Error::kBufferTooSmall;
+        return MAKE_ERROR(Error::kBufferTooSmall);
       }
 
       uint8_t* p = buf + config_desc->length;
@@ -307,7 +307,7 @@ namespace usb::xhci {
       for (int if_index = 0; if_index < num_interfaces; ++if_index) {
         auto if_desc = DescriptorDynamicCast<InterfaceDescriptor>(p);
         if (if_desc == nullptr) {
-          return Error::kInvalidDescriptor;
+          return MAKE_ERROR(Error::kInvalidDescriptor);
         }
         printk("Interface Descriptor: class=%d, sub=%d, protocol=%d\n",
             if_desc->interface_class,
@@ -320,7 +320,7 @@ namespace usb::xhci {
 
         while (num_endpoints_found < num_endpoints) {
           if (auto if_desc = DescriptorDynamicCast<InterfaceDescriptor>(p)) {
-            return Error::kInvalidDescriptor;
+            return MAKE_ERROR(Error::kInvalidDescriptor);
           }
           if (auto ep_desc = DescriptorDynamicCast<EndpointDescriptor>(p)) {
             printk("Endpoint Descriptor: addr=0x%02x, attr=0x%02x\n",
@@ -343,6 +343,6 @@ namespace usb::xhci {
       }
     }
 
-    return Error::kSuccess;
+        return MAKE_ERROR(Error::kSuccess);
   }
 }

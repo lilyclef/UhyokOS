@@ -130,7 +130,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }*/
 
   auto err = pci::ScanAllBus();
-  printk("ScanAllBus: %s\n", err.Name());
+  printk("failed to configure port: %s at %s:%d\n", err.Name(), err.File(), err.Line());
 
   for (int i = 0; i < pci::num_device; ++i) {
     const auto& dev = pci::devices[i];
