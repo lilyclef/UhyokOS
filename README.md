@@ -97,3 +97,5 @@ Program Headers:
 ```
 # Day 6
 - asmfunc.asm ってなんなのか気になる。あまり良くわかっていないけれど、取り敢えず進んであとから戻る。
+
+- undefined symbol: std::get_new_handler()が出たが、libcxx_support.cppを足したら問題なくなった。
