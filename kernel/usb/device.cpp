@@ -18,20 +18,20 @@ Device::~Device() {
 
   Error Device::OnControlOutCompleted(const void* buf, size_t len) {
     printk("OnControlOutCompleted: %p, %d\n", buf, len);
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   Error Device::OnControlInCompleted(const void* buf, size_t len) {
     printk("OnControlInCompleted: %p, %d\n", buf, len);
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   Error Device::OnDeviceDescriptorReceived(const uint8_t* desc_data, size_t len) {
-    return Error::kNotImplemented;
+      return MAKE_ERROR(Error::kNotImplemented);
   }
 
   Error Device::OnConfigurationDescriptorReceived(const uint8_t* desc_data, size_t len) {
-    return Error::kNotImplemented;
+      return MAKE_ERROR(Error::kNotImplemented);
   }
 
   Error GetDescriptor(Device& dev, int ep_num,
