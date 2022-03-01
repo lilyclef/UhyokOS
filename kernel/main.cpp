@@ -7,10 +7,14 @@
 
 #include "frame_buffer_config.hpp"
 #include "graphics.hpp"
+#include "mouse.hpp"
 #include "font.hpp"
 #include "console.hpp"
 #include "pci.hpp"
+#include "logger.hpp"
 #include "usb/memory.hpp"
+#include "usb/device.hpp"
+#include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
 
@@ -20,42 +24,13 @@
   return buf;
   }*/
 
-void operator delete(void* obj) noexcept {
-}
+/*void operator delete(void* obj) noexcept {
+  }*/
 // (:3 配置newを設定するための準備 end
 
 // (:3 グローバル変数 begin
 const PixelColor kDesktopBGColor{181, 234, 234};
 const PixelColor kDesktopFGColor{142, 127, 127};
-
-const int kMouseCursorWidth = 15;
-const int kMouseCursorHeight = 24;
-const char mouse_cursor_shape[kMouseCursorHeight][kMouseCursorWidth + 1] = {
-  "@              ",
-  "@@             ",
-  "@@@            ",
-  "@@@@           ",
-  "@@.@@          ",
-  "@@..@@         ",
-  "@@...@@        ",
-  "@@....@@       ",
-  "@@.....@@      ",
-  "@@......@@     ",
-  "@@.......@@    ",
-  "@@........@@   ",
-  "@@.........@@  ",
-  "@@.......@@@@@ ",
-  "@@......@@@@@@@",
-  "@@......@      ",
-  "@@..@@..@      ",
-  "@@.@@ @..@     ",
-  "@@@@   @..@    ",
-  "@@@    @..@    ",
-  "@@      @..@   ",
-  "@       @..@   ",
-  "         @..@  ",
-  "         @@@@  ",
-};
 
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
@@ -77,6 +52,37 @@ int printk(const char* format, ...) {
   return result;
 }
 
+// #@@range_begin(mouse_observer)
+char mouse_cursor_buf[sizeof(MouseCursor)];
+MouseCursor* mouse_cursor;
+
+void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
+  mouse_cursor->MoveRelative({displacement_x, displacement_y});
+}
+// #@@range_end(mouse_observer)
+
+// #@@range_begin(switch_echi2xhci)
+void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
+  bool intel_ehc_exist = false;
+  for (int i = 0; i < pci::num_device; ++i) {
+    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x20u) /* EHCI */ &&
+        0x8086 == pci::ReadVendorId(pci::devices[i])) {
+      intel_ehc_exist = true;
+      break;
+    }
+  }
+  if (!intel_ehc_exist) {
+    return;
+  }
+
+  uint32_t superspeed_ports = pci::ReadConfReg(xhc_dev, 0xdc); // USB3PRM
+  pci::WriteConfReg(xhc_dev, 0xd8, superspeed_ports); // USB3_PSSEN
+  uint32_t ehci2xhci_ports = pci::ReadConfReg(xhc_dev, 0xd4); // XUSB2PRM
+  pci::WriteConfReg(xhc_dev, 0xd0, ehci2xhci_ports); // XUSB2PR
+  Log(kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
+      superspeed_ports, ehci2xhci_ports);
+}
+// #@@range_end(switch_echi2xhci)
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -114,32 +120,27 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   console = new(console_buf) Console{
     *pixel_writer, kDesktopFGColor, kDesktopBGColor
   };
-  // 背景を丁寧に塗る
-  /*for (int x = 0; x < frame_buffer_config.horizontal_resolution; ++x) {
-    for (int y = 0; y < frame_buffer_config.vertical_resolution; ++y) {
-      pixel_writer->Write(x, y, {143, 204, 232});
-    }
-  }
-  // 円を丁寧に書く
-  for (int x = 0; x < 400; ++x) {
-    for (int y = 0; y < 400; ++y) {
-      if ((x - 200)*(x - 200) + (y - 200)*(y - 200) <= 40000) {
-        pixel_writer->Write(x, y, {234, 145, 152});
-      }
-    }
-    }*/
+  printk("Welcome to Uhyo world\n");
+  SetLogLevel(kWarn);
+
+  // #@@range_begin(new_mouse_cursor)
+  mouse_cursor = new(mouse_cursor_buf) MouseCursor{
+    pixel_writer, kDesktopBGColor, {300, 200}
+  };
+  // #@@range_end(new_mouse_cursor)
 
   auto err = pci::ScanAllBus();
-  printk("failed to configure port: %s at %s:%d\n", err.Name(), err.File(), err.Line());
+  Log(kDebug, "ScanAllBus: %s\n", err.Name());
 
   for (int i = 0; i < pci::num_device; ++i) {
     const auto& dev = pci::devices[i];
-    auto vendor_id = pci::ReadVendorId(dev.bus, dev.device, dev.function);
+    auto vendor_id = pci::ReadVendorId(dev);
     auto class_code = pci::ReadClassCode(dev.bus, dev.device, dev.function);
-    printk("%d.%d.%d: vend %04x, class %08x, head %02x\n",
+    Log(kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
         dev.bus, dev.device, dev.function,
         vendor_id, class_code, dev.header_type);
   }
+
   pci::Device* xhc_dev = nullptr;
   for (int i = 0; i < pci::num_device; ++i) {
     if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
@@ -154,54 +155,54 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
            xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 
-  std::vector<int, usb::Allocator<int>> v;
-  for (int i = 0; i <= 100; ++i) {
-    v.push_back(i);
+    // #@@range_begin(read_bar)
+  const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
+  Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
+  const uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
+  Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
+  // #@@range_end(read_bar)
+
+  // #@@range_begin(init_xhc)
+  usb::xhci::Controller xhc{xhc_mmio_base};
+
+  if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
+    SwitchEhci2Xhci(*xhc_dev);
+  }
+  {
+    auto err = xhc.Initialize();
+    Log(kDebug, "xhc.Initialize: %s\n", err.Name());
   }
 
-  printk("sum: %d\n", std::accumulate(v.begin(), v.end(), 0));
-
-  const auto bar = pci::ReadBar(*xhc_dev, 0);
-  //const auto mmio_base = bitutil::ClearBits(bar.value, 0xf);
-  const auto mmio_base = bar.value & ~static_cast<uint64_t>(0xf);
-  printk("xHC mmio_base = %08lx\n", mmio_base);
-  usb::xhci::Controller xhc{mmio_base};
-
-  if (auto err = xhc.Initialize()) {
-    printk("xhc.Initialize: %s\n", err.Name());
-  }
+  Log(kInfo, "xHC starting\n");
   xhc.Run();
+  // #@@range_end(init_xhc)
 
-  printk("xHC start running\n");
+  // #@@range_begin(configure_port)
+  usb::HIDMouseDriver::default_observer = MouseObserver;
 
   for (int i = 1; i <= xhc.MaxPorts(); ++i) {
     auto port = xhc.PortAt(i);
-    printk("Port %d: IsConnected=%d\n", i, port.IsConnected());
+    Log(kDebug, "Port %d: IsConnected=%d\n", i, port.IsConnected());
 
     if (port.IsConnected()) {
       if (auto err = ConfigurePort(xhc, port)) {
-        printk("failed to configure port: %s\n", err.Name());
+        Log(kError, "failed to configure port: %s at %s:%d\n",
+            err.Name(), err.File(), err.Line());
         continue;
       }
     }
   }
+  // #@@range_end(configure_port)
 
-  while (!xhc.PrimaryEventRing()->HasFront()) {
-  }
-
-  printk("xHC has least one event: %s\n", usb::xhci::kTRBTypeToName[
-      xhc.PrimaryEventRing()->Front()->bits.trb_type]);
-
-  WriteString(*pixel_writer, 100, 100, "(:3", {0, 0, 0});
-  for (int dy = 0; dy < kMouseCursorHeight; ++dy) {
-    for (int dx = 0; dx < kMouseCursorWidth; ++dx) {
-      if (mouse_cursor_shape[dy][dx] == '@') {
-        pixel_writer->Write(200 + dx, 100 + dy, {255, 255, 255});
-      } else if (mouse_cursor_shape[dy][dx] == '.') {
-        pixel_writer->Write(200 + dx, 100 + dy, kDesktopFGColor);
-      }
+  // #@@range_begin(receive_event)
+  while (1) {
+    if (auto err = ProcessEvent(xhc)) {
+      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+          err.Name(), err.File(), err.Line());
     }
   }
+  // #@@range_end(receive_event)
+
   while (1) __asm__("hlt");
 }
 

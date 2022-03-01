@@ -26,7 +26,7 @@ namespace usb::xhci {
       uint32_t event_ring_segment_table_max : 4;
       uint32_t : 13;
       uint32_t max_scratchpad_buffers_high : 5;
-      uint32_t : 1;
+      uint32_t scratchpad_restore : 1;
       uint32_t max_scratchpad_buffers_low : 5;
     } __attribute__((packed)) bits;
   } __attribute__((packed));
@@ -371,4 +371,53 @@ namespace usb::xhci {
   };
 
   using DoorbellRegisterArray = ArrayWrapper<DoorbellRegister>;
+
+  /** @brief 拡張レジスタの共通ヘッダ構造 */
+  union ExtendedRegister_Bitmap {
+    uint32_t data[1];
+    struct {
+      uint32_t capability_id : 8;
+      uint32_t next_pointer : 8;
+      uint32_t value : 16;
+    } __attribute__((packed)) bits;
+  } __attribute__((packed));
+
+  class ExtendedRegisterList {
+   public:
+    using ValueType = MemMapRegister<ExtendedRegister_Bitmap>;
+
+    class Iterator {
+     public:
+      Iterator(ValueType* reg) : reg_{reg} {}
+      auto operator->() const { return reg_; }
+      auto& operator*() const { return *reg_; }
+      bool operator==(Iterator lhs) const { return reg_ == lhs.reg_; }
+      bool operator!=(Iterator lhs) const { return reg_ != lhs.reg_; }
+      Iterator& operator++();
+
+     private:
+      ValueType* reg_;
+    };
+
+    ExtendedRegisterList(uint64_t mmio_base, HCCPARAMS1_Bitmap hccp);
+
+    Iterator begin() const { return first_; }
+    Iterator end() const { return Iterator{nullptr}; }
+
+   private:
+    const Iterator first_;
+  };
+
+  /**** 個別の拡張レジスタ定義 ****/
+  union USBLEGSUP_Bitmap {
+    uint32_t data[1];
+    struct {
+      uint32_t capability_id : 8;
+      uint32_t next_pointer : 8;
+      uint32_t hc_bios_owned_semaphore : 1;
+      uint32_t : 7;
+      uint32_t hc_os_owned_semaphore : 1;
+      uint32_t : 7;
+    } __attribute__((packed)) bits;
+  } __attribute__((packed));
 }

@@ -11,6 +11,7 @@
 
 #include "error.hpp"
 #include "usb/device.hpp"
+#include "usb/arraymap.hpp"
 #include "usb/xhci/context.hpp"
 #include "usb/xhci/trb.hpp"
 #include "usb/xhci/registers.hpp"
@@ -45,13 +46,16 @@ namespace usb::xhci {
     uint8_t SlotID() const { return slot_id_; }
 
     void SelectForSlotAssignment();
-
     Ring* AllocTransferRing(DeviceContextIndex index, size_t buf_size);
 
-    Error ControlIn(int ep_num, uint64_t setup_data, void* buf, int len);
-    Error ControlOut(int ep_num, uint64_t setup_data, const void* buf, int len);
+    Error ControlIn(EndpointID ep_id, SetupData setup_data,
+                    void* buf, int len, ClassDriver* issuer) override;
+    Error ControlOut(EndpointID ep_id, SetupData setup_data,
+                     const void* buf, int len, ClassDriver* issuer) override;
+    Error InterruptIn(EndpointID ep_id, void* buf, int len) override;
+    Error InterruptOut(EndpointID ep_id, void* buf, int len) override;
 
-     Error OnTransferEventReceived(const TransferEventTRB& trb);
+    Error OnTransferEventReceived(const TransferEventTRB& trb);
 
    private:
     alignas(64) struct DeviceContext ctx_;
@@ -61,8 +65,13 @@ namespace usb::xhci {
     DoorbellRegister* const dbreg_;
 
     enum State state_;
-
     std::array<Ring*, 31> transfer_rings_; // index = dci - 1
+
+    /** コントロール転送が完了した際に DataStageTRB や StatusStageTRB
+     * から対応する SetupStageTRB を検索するためのマップ．
+     */
+    ArrayMap<const void*, const SetupStageTRB*, 16> setup_stage_map_{};
+
     //usb::Device* usb_device_;
   };
 }
