@@ -20,12 +20,17 @@ class Error {
     kNotImplemented,
     kInvalidDescriptor,
     kBufferTooSmall,
+    kUnknownDevice,
+    kNoCorrespondingSetupStage,
+    kTransferFailed,
+    kInvalidPhase,
+    kUnknownXHCISpeedID,
+    kNoWaiter,
     kLastOfCode,  // この列挙子は常に最後に配置する
   };
 
-
  private:
-  static constexpr std::array<const char*, kLastOfCode> code_names_ = {
+  static constexpr std::array code_names_{
     "kSuccess",
     "kFull",
     "kEmpty",
@@ -35,11 +40,17 @@ class Error {
     "kInvalidSlotID",
     "kPortNotConnected",
     "kInvalidEndpointNumber",
-    "kAlreadyAllocated",
     "kTransferRingNotSet",
+    "kAlreadyAllocated",
     "kNotImplemented",
     "kInvalidDescriptor",
     "kBufferTooSmall",
+    "kUnknownDevice",
+    "kNoCorrespondingSetupStage",
+    "kTransferFailed",
+    "kInvalidPhase",
+    "kUnknownXHCISpeedID",
+    "kNoWaiter",
   };
   static_assert(Error::Code::kLastOfCode == code_names_.size());
 
@@ -74,9 +85,10 @@ class Error {
 
 #define MAKE_ERROR(code) Error((code), __FILE__, __LINE__)
 
-
+// #@@range_begin(with_error)
 template <class T>
 struct WithError {
   T value;
   Error error;
 };
+// #@@range_end(with_error)

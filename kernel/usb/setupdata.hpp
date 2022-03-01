@@ -43,6 +43,10 @@ namespace usb {
     const int kSetInterfaceDS = 23;
     const int kSetSel = 48;
     const int kSetIsochDelay = 49;
+
+    // HID class specific report values
+    const int kGetReport = 1;
+    const int kSetProtocol = 11;
   }
 
   namespace descriptor_type {
@@ -62,18 +66,27 @@ namespace usb {
     const int kSuperspeedPlusIsochronousEndpointCompanion = 49;
   }
 
-  union SetupData {
-    uint64_t data;
-    struct {
-      // bmRequestType
-      uint8_t recipient : 5;
-      uint8_t type : 2;
-      uint8_t direction : 1;
+  struct SetupData {
+    union {
+      uint8_t data;
+      struct {
+        uint8_t recipient : 5;
+        uint8_t type : 2;
+        uint8_t direction : 1;
+      } bits;
+    } request_type;
+    uint8_t request;
+    uint16_t value;
+    uint16_t index;
+    uint16_t length;
+  } __attribute__((packed));
 
-      uint8_t request;
-      uint16_t value;
-      uint16_t index;
-      uint16_t length;
-    } __attribute__((packed)) bits;
-  };
+  inline bool operator ==(SetupData lhs, SetupData rhs) {
+    return
+      lhs.request_type.data == rhs.request_type.data &&
+      lhs.request == rhs.request &&
+      lhs.value == rhs.value &&
+      lhs.index == rhs.index &&
+      lhs.length == rhs.length;
+  }
 }

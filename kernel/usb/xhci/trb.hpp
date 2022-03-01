@@ -54,11 +54,11 @@ namespace usb::xhci {
       bits.trb_type = Type;
     }
 
-    TRB* Pointer() const {
+    void* Pointer() const {
       return reinterpret_cast<TRB*>(bits.data_buffer_pointer);
     }
 
-    void SetPointer(const TRB* p) {
+    void SetPointer(const void* p) {
       bits.data_buffer_pointer = reinterpret_cast<uint64_t>(p);
     }
   };
@@ -323,10 +323,14 @@ namespace usb::xhci {
       uint32_t slot_id : 8;
     } __attribute__((packed)) bits;
 
-    StopEndpointCommandTRB(DeviceContextIndex endpoint_id, uint8_t slot_id) {
+    StopEndpointCommandTRB(EndpointID endpoint_id, uint8_t slot_id) {
       bits.trb_type = Type;
-      bits.endpoint_id = endpoint_id.value;
+      bits.endpoint_id = endpoint_id.Address();
       bits.slot_id = slot_id;
+    }
+
+    EndpointID EndpointID() const {
+      return usb::EndpointID{bits.endpoint_id};
     }
   };
 
@@ -380,6 +384,10 @@ namespace usb::xhci {
 
     void SetPointer(const TRB* p) {
       bits.trb_pointer = reinterpret_cast<uint64_t>(p);
+    }
+
+    EndpointID EndpointID() const {
+      return usb::EndpointID{bits.endpoint_id};
     }
   };
 

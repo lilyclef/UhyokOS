@@ -1,9 +1,29 @@
+/**
+ * @file pci.cpp
+ *
+ * PCI バス制御のプログラムを集めたファイル．
+ */
+
 #include "pci.hpp"
 
 #include "asmfunc.h"
 
 namespace {
   using namespace pci;
+
+  /** @brief CONFIG_ADDRESS 用の 32 ビット整数を生成する */
+  uint32_t MakeAddress(uint8_t bus, uint8_t device,
+                       uint8_t function, uint8_t reg_addr) {
+    auto shl = [](uint32_t x, unsigned int bits) {
+        return x << bits;
+    };
+
+    return shl(1, 31)  // enable bit
+        | shl(bus, 16)
+        | shl(device, 11)
+        | shl(function, 8)
+        | (reg_addr & 0xfcu);
+  }
 
   /** @brief devices[num_device] に情報を書き込み num_device をインクリメントする． */
   Error AddDevice(const Device& device) {
@@ -25,7 +45,6 @@ namespace {
     auto class_code = ReadClassCode(bus, device, function);
     auto header_type = ReadHeaderType(bus, device, function);
     Device dev{bus, device, function, header_type, class_code};
-
     if (auto err = AddDevice(dev)) {
       return err;
     }
@@ -108,12 +127,12 @@ namespace pci {
 
   ClassCode ReadClassCode(uint8_t bus, uint8_t device, uint8_t function) {
     WriteAddress(MakeAddress(bus, device, function, 0x08));
-     auto reg = ReadData();
-     ClassCode cc;
-     cc.base       = (reg >> 24) & 0xffu;
-     cc.sub        = (reg >> 16) & 0xffu;
-     cc.interface  = (reg >> 8)  & 0xffu;
-     return cc;
+    auto reg = ReadData();
+    ClassCode cc;
+    cc.base       = (reg >> 24) & 0xffu;
+    cc.sub        = (reg >> 16) & 0xffu;
+    cc.interface  = (reg >> 8)  & 0xffu;
+    return cc;
   }
 
   uint32_t ReadBusNumbers(uint8_t bus, uint8_t device, uint8_t function) {
@@ -125,9 +144,6 @@ namespace pci {
     return (header_type & 0x80u) == 0;
   }
 
-  std::array<Device, 32> devices;
-  int num_device;
-
   Error ScanAllBus() {
     num_device = 0;
 
@@ -136,7 +152,7 @@ namespace pci {
       return ScanBus(0);
     }
 
-    for (uint8_t function = 1; function < 8; ++function) {
+    for (uint8_t function = 0; function < 8; ++function) {
       if (ReadVendorId(0, 0, function) == 0xffffu) {
         continue;
       }
@@ -146,9 +162,15 @@ namespace pci {
     }
     return MAKE_ERROR(Error::kSuccess);
   }
-uint32_t ReadConfReg(const Device& dev, uint8_t reg_addr) {
+
+  uint32_t ReadConfReg(const Device& dev, uint8_t reg_addr) {
     WriteAddress(MakeAddress(dev.bus, dev.device, dev.function, reg_addr));
     return ReadData();
+  }
+
+  void WriteConfReg(const Device& dev, uint8_t reg_addr, uint32_t value) {
+    WriteAddress(MakeAddress(dev.bus, dev.device, dev.function, reg_addr));
+    WriteData(value);
   }
 
   WithError<uint64_t> ReadBar(Device& device, unsigned int bar_index) {

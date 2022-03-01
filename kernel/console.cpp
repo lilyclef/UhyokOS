@@ -1,8 +1,13 @@
+/**
+ * @file console.cpp
+ *
+ * コンソール描画のプログラムを集めたファイル．
+ */
+
 #include "console.hpp"
 
 #include <cstring>
 #include "font.hpp"
-
 
 Console::Console(PixelWriter& writer,
     const PixelColor& fg_color, const PixelColor& bg_color)
@@ -22,8 +27,6 @@ void Console::PutString(const char* s) {
     ++s;
   }
 }
-
-
 
 void Console::Newline() {
   cursor_column_ = 0;

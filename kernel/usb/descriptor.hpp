@@ -61,8 +61,23 @@ namespace usb {
 
     uint8_t length;             // offset 0
     uint8_t descriptor_type;    // offset 1
-    uint8_t endpoint_address;   // offset 2
-    uint8_t attributes;         // offset 3
+    union {
+      uint8_t data;
+      struct {
+        uint8_t number : 4;
+        uint8_t : 3;
+        uint8_t dir_in : 1;
+      } __attribute__((packed)) bits;
+    } endpoint_address;         // offset 2
+    union {
+      uint8_t data;
+      struct {
+        uint8_t transfer_type : 2;
+        uint8_t sync_type : 2;
+        uint8_t usage_type : 2;
+        uint8_t : 2;
+      } __attribute__((packed)) bits;
+    } attributes;               // offset 3
     uint16_t max_packet_size;   // offset 4
     uint8_t interval;           // offset 6
   } __attribute__((packed));
@@ -93,7 +108,7 @@ namespace usb {
      * @param index  取得するディスクリプタの番号．0 <= index < num_descriptors.
      * @return index で指定されたディスクリプタの情報．index が範囲外なら nullptr.
      */
-    ClassDescriptor* GetClassDescriptor(size_t index) {
+    ClassDescriptor* GetClassDescriptor(size_t index) const {
       if (index >= num_descriptors) {
         return nullptr;
       }
@@ -107,6 +122,14 @@ namespace usb {
   T* DescriptorDynamicCast(uint8_t* desc_data) {
     if (desc_data[1] == T::kType) {
       return reinterpret_cast<T*>(desc_data);
+    }
+    return nullptr;
+  }
+
+  template <class T>
+  const T* DescriptorDynamicCast(const uint8_t* desc_data) {
+    if (desc_data[1] == T::kType) {
+      return reinterpret_cast<const T*>(desc_data);
     }
     return nullptr;
   }

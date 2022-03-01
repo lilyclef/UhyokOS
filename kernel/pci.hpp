@@ -1,3 +1,9 @@
+/**
+ * @file pci.hpp
+ *
+ * PCI バス制御のプログラムを集めたファイル．
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -11,7 +17,8 @@ namespace pci {
   /** @brief CONFIG_DATA レジスタの IO ポートアドレス */
   const uint16_t kConfigData = 0x0cfc;
 
- /** @brief PCI デバイスのクラスコード */
+  // #@@range_begin(class_code)
+  /** @brief PCI デバイスのクラスコード */
   struct ClassCode {
     uint8_t base, sub, interface;
 
@@ -30,25 +37,11 @@ namespace pci {
    * バス番号，デバイス番号，ファンクション番号はデバイスを特定するのに必須．
    * その他の情報は単に利便性のために加えてある．
    * */
-
   struct Device {
     uint8_t bus, device, function, header_type;
     ClassCode class_code;
   };
-
-  /** @brief CONFIG_ADDRESS 用の 32 ビット整数を生成する */
-  constexpr uint32_t MakeAddress(uint8_t bus, uint8_t device,
-                                 uint8_t function, uint8_t reg_addr) {
-    auto shl = [](uint32_t x, unsigned int bits) {
-        return x << bits;
-    };
-
-    return shl(1, 31)  // enable bit
-        | shl(bus, 16)
-        | shl(device, 11)
-        | shl(function, 8)
-        | (reg_addr & 0xfcu);
-  }
+  // #@@range_end(class_code)
 
   /** @brief CONFIG_ADDRESS に指定された整数を書き込む */
   void WriteAddress(uint32_t address);
@@ -63,19 +56,17 @@ namespace pci {
   uint16_t ReadDeviceId(uint8_t bus, uint8_t device, uint8_t function);
   /** @brief ヘッダタイプレジスタを読み取る（全ヘッダタイプ共通） */
   uint8_t ReadHeaderType(uint8_t bus, uint8_t device, uint8_t function);
-  /** @brief クラスコードレジスタを読み取る（全ヘッダタイプ共通）
-   *
-   * 返される 32 ビット整数の構造は次の通り．
-   *   - 31:24 : ベースクラス
-   *   - 23:16 : サブクラス
-   *   - 15:8  : インターフェース
-   *   - 7:0   : リビジョン
-   */
+  /** @brief クラスコードレジスタを読み取る（全ヘッダタイプ共通） */
   ClassCode ReadClassCode(uint8_t bus, uint8_t device, uint8_t function);
+
+  inline uint16_t ReadVendorId(const Device& dev) {
+    return ReadVendorId(dev.bus, dev.device, dev.function);
+  }
 
   /** @brief 指定された PCI デバイスの 32 ビットレジスタを読み取る */
   uint32_t ReadConfReg(const Device& dev, uint8_t reg_addr);
 
+  void WriteConfReg(const Device& dev, uint8_t reg_addr, uint32_t value);
 
   /** @brief バス番号レジスタを読み取る（ヘッダタイプ 1 用）
    *
@@ -90,17 +81,19 @@ namespace pci {
   bool IsSingleFunctionDevice(uint8_t header_type);
 
   /** @brief ScanAllBus() により発見された PCI デバイスの一覧 */
-  extern std::array<Device, 32> devices;
+  inline std::array<Device, 32> devices;
   /** @brief devices の有効な要素の数 */
-  extern int num_device;
+  inline int num_device;
   /** @brief PCI デバイスをすべて探索し devices に格納する
    *
    * バス 0 から再帰的に PCI デバイスを探索し，devices の先頭から詰めて書き込む．
    * 発見したデバイスの数を num_devices に設定する．
    */
   Error ScanAllBus();
+
   constexpr uint8_t CalcBarAddress(unsigned int bar_index) {
     return 0x10 + 4 * bar_index;
   }
+
   WithError<uint64_t> ReadBar(Device& device, unsigned int bar_index);
 }

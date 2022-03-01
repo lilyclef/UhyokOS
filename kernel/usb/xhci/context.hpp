@@ -1,5 +1,7 @@
 #pragma once
 
+#include "usb/endpoint.hpp"
+
 namespace usb::xhci {
   class Ring;
   union TRB;
@@ -61,18 +63,19 @@ namespace usb::xhci {
     TRB* TransferRingBuffer() const {
       return reinterpret_cast<TRB*>(bits.tr_dequeue_pointer << 4);
     }
+
     void SetTransferRingBuffer(TRB* buffer) {
       bits.tr_dequeue_pointer = reinterpret_cast<uint64_t>(buffer) >> 4;
     }
-
   } __attribute__((packed));
 
   struct DeviceContextIndex {
-    unsigned int value;
+    int value;
 
-    explicit DeviceContextIndex(unsigned int dci) : value{dci} {}
+    explicit DeviceContextIndex(int dci) : value{dci} {}
+    DeviceContextIndex(EndpointID ep_id) : value{ep_id.Address()} {}
 
-    DeviceContextIndex(unsigned int ep_num, bool dir_in)
+    DeviceContextIndex(int ep_num, bool dir_in)
         : value{2 * ep_num + (ep_num == 0 ? 1 : dir_in)} {}
 
     DeviceContextIndex(const DeviceContextIndex& rhs) = default;

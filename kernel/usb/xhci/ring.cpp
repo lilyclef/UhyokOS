@@ -20,11 +20,11 @@ namespace usb::xhci {
 
     buf_ = AllocArray<TRB>(buf_size_, 64, 64 * 1024);
     if (buf_ == nullptr) {
-      return Error::kNoEnoughMemory;
+      return MAKE_ERROR(Error::kNoEnoughMemory);
     }
     memset(buf_, 0, buf_size_ * sizeof(TRB));
 
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   void Ring::CopyToLast(const std::array<uint32_t, 4>& data) {
@@ -36,7 +36,8 @@ namespace usb::xhci {
       = (data[3] & 0xfffffffeu) | static_cast<uint32_t>(cycle_bit_);
   }
 
-  void Ring::Push(const std::array<uint32_t, 4>& data) {
+  TRB* Ring::Push(const std::array<uint32_t, 4>& data) {
+    auto trb_ptr = &buf_[write_index_];
     CopyToLast(data);
 
     ++write_index_;
@@ -48,6 +49,8 @@ namespace usb::xhci {
       write_index_ = 0;
       cycle_bit_ = !cycle_bit_;
     }
+
+    return trb_ptr;
   }
 
   Error EventRing::Initialize(size_t buf_size,
@@ -62,30 +65,31 @@ namespace usb::xhci {
 
     buf_ = AllocArray<TRB>(buf_size_, 64, 64 * 1024);
     if (buf_ == nullptr) {
-      return Error::kNoEnoughMemory;
+      return MAKE_ERROR(Error::kNoEnoughMemory);
     }
     memset(buf_, 0, buf_size_ * sizeof(TRB));
 
     erst_ = AllocArray<EventRingSegmentTableEntry>(1, 64, 64 * 1024);
     if (erst_ == nullptr) {
       FreeMem(buf_);
-      return Error::kNoEnoughMemory;
+      return MAKE_ERROR(Error::kNoEnoughMemory);
     }
+    memset(erst_, 0, 1 * sizeof(EventRingSegmentTableEntry));
 
     erst_[0].bits.ring_segment_base_address = reinterpret_cast<uint64_t>(buf_);
     erst_[0].bits.ring_segment_size = buf_size_;
 
-    ERSTSZ_Bitmap erstsz{};
+    ERSTSZ_Bitmap erstsz = interrupter_->ERSTSZ.Read();
     erstsz.SetSize(1);
     interrupter_->ERSTSZ.Write(erstsz);
 
     WriteDequeuePointer(&buf_[0]);
 
-    ERSTBA_Bitmap erstba{};
+    ERSTBA_Bitmap erstba = interrupter_->ERSTBA.Read();
     erstba.SetPointer(reinterpret_cast<uint64_t>(erst_));
     interrupter_->ERSTBA.Write(erstba);
 
-    return Error::kSuccess;
+    return MAKE_ERROR(Error::kSuccess);
   }
 
   void EventRing::WriteDequeuePointer(TRB* p) {
@@ -103,6 +107,7 @@ namespace usb::xhci {
 
     if (p == segment_end) {
       p = segment_begin;
+      cycle_bit_ = !cycle_bit_;
     }
 
     WriteDequeuePointer(p);
