@@ -182,6 +182,16 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
               reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
   LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
 
+  // [7.8] Validate MSI Interrupt
+  // Make interrupts in InterruptVector::kXHCI to CPU core id
+  // BSP (Bootstrap Processor)
+  const uint8_t bsp_local_apic_id =
+    *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+  pci::ConfigureMSIFixedDestination(
+      *xhc_dev, bsp_local_apic_id,
+      pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
+      InterruptVector::kXHCI, 0);
+
   // [6.19] Read BAR0 Register
   const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
   Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
@@ -218,14 +228,6 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
             err.Name(), err.File(), err.Line());
         continue;
       }
-    }
-  }
-
-// [6.24] Execute saved events in the xHC
-  while (1) {
-    if (auto err = ProcessEvent(xhc)) {
-      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-          err.Name(), err.File(), err.Line());
     }
   }
 
