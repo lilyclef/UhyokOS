@@ -17,7 +17,8 @@
 #include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
-
+#include "interrupt.hpp"
+#include "asmfunc.h"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -83,6 +84,21 @@ void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
       superspeed_ports, ehci2xhci_ports);
 }
 // Mouse Lib End
+
+// [7.1] Definition of Interrupt Handler for xHCI
+usb::xhci::Controller* xhc;
+
+// Compiler inserts Context Save and Return by attribute
+__attribute__((interrupt))
+void IntHandlerXHCI(InterruptFrame* frame) {
+  while (xhc->PrimaryEventRing()->HasFront()) {
+    if (auto err = ProcessEvent(*xhc)) {
+      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+          err.Name(), err.File(), err.Line());
+    }
+  }
+  NotifyEndOfInterrupt();
+}
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -160,6 +176,12 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
            xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 
+  // [7.6] Register IDT to CPU by setting interrupt vector 0x40
+  const uint16_t cs = GetCS();
+  SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+              reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+  LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
+
   // [6.19] Read BAR0 Register
   const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
   Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
@@ -179,6 +201,9 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   Log(kInfo, "xHC starting\n");
   xhc.Run();
+
+  ::xhc = &xhc;
+  __asm__("sti");
 
   // [6.23] Setting for connected port by searching USB port
   usb::HIDMouseDriver::default_observer = MouseObserver;
