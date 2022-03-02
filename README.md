@@ -111,3 +111,9 @@ Program Headers:
 - asmfunc.asm ってなんなのか気になる。あまり良くわかっていないけれど、取り敢えず進んであとから戻る。
 
 - undefined symbol: std::get_new_handler()が出たが、libcxx_support.cppを足したら問題なくなった。
+
+## 2022/03/02
+- Resume developping OS on Ubuntu
+- Start Issue driven development
+- When I delete return in the printk function, host OS ubuntu was broken.
+- Now it resolves but awaking QEMU problem has occurred
