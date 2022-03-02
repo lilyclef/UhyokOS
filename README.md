@@ -1,14 +1,26 @@
 # UhyokOS
 - OS of Uhyoko, by Uhyoko, for Uhyoko from MikanOS (¦3[▓▓]
 
-## Environment
-macOS Big Sur ver. 11.4 2021/07/01
-MacBook (Retina, 12-inch, Early 2015)
+# Environment
+## MacBook (Retina, 12-inch, Early 2015)
+OS: macOS Big Sur ver. 11.4
 CPU:1.3 GHz デュアルコアIntel Core M
 
+### How to run on Intel Mac
 Thanks!
 [Mac で始める「ゼロからのOS自作入門」 - Qiita](https://qiita.com/yamoridon/items/4905765cc6e4f320c9b5)
 
+## Ubuntu 21.04
+OS: Ubuntu 21.04 (Hirsute Hippo)
+CPU: Intel Core i7-9700KF CPU @ 3.60GHz
+Cores: 8
+
+### How to run on Ubuntu 21.04
+- Basically you can follow https://github.com/uchan-nos/mikanos-build
+- Since llvm-7-dev isn't provided for Ubuntu 21.04, use $sudo apt-get install llvm-11-dev clang-11$
+- Change -7 to -11 in the ~/osbook/devenv/ansible_provision.yml and build
+
+# Diary
 ## Day 1
 - [Unified_Extensible_Firmware_Interface : Wikipedia](https://ja.wikipedia.org/wiki/Unified_Extensible_Firmware_Interface)
 - 教科書P46
@@ -95,7 +107,7 @@ Program Headers:
    03     .bss
    04
 ```
-# Day 6
+## Day 6
 - asmfunc.asm ってなんなのか気になる。あまり良くわかっていないけれど、取り敢えず進んであとから戻る。
 
 - undefined symbol: std::get_new_handler()が出たが、libcxx_support.cppを足したら問題なくなった。
