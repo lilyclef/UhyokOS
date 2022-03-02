@@ -52,16 +52,16 @@ int printk(const char* format, ...) {
   return result;
 }
 
-// #@@range_begin(mouse_observer)
+// Mouse Lib
+// [6.25] Define MouseObserver()
 char mouse_cursor_buf[sizeof(MouseCursor)];
 MouseCursor* mouse_cursor;
 
 void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
   mouse_cursor->MoveRelative({displacement_x, displacement_y});
 }
-// #@@range_end(mouse_observer)
 
-// #@@range_begin(switch_echi2xhci)
+// [6.22] Change control mode of USB port
 void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
   bool intel_ehc_exist = false;
   for (int i = 0; i < pci::num_device; ++i) {
@@ -82,7 +82,7 @@ void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
   Log(kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
       superspeed_ports, ehci2xhci_ports);
 }
-// #@@range_end(switch_echi2xhci)
+// Mouse Lib End
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -105,30 +105,34 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   const int kFrameWidth = frame_buffer_config.horizontal_resolution;
   const int kFrameHeight = frame_buffer_config.vertical_resolution;
 
+  // Background
   FillRectangle(*pixel_writer,
                 {0, 0},
                 {kFrameWidth, kFrameHeight - 50},
                 kDesktopBGColor);
+  // Tool Bar
   FillRectangle(*pixel_writer,
                 {0, kFrameHeight - 50},
                 {kFrameWidth, 50},
                 {243, 139, 160});
+  // Start Menu
   FillRectangle(*pixel_writer,
                 {0, kFrameHeight - 50},
                 {kFrameWidth / 5, 50},
                 {237, 246, 229});
+
   console = new(console_buf) Console{
     *pixel_writer, kDesktopFGColor, kDesktopBGColor
   };
   printk("Welcome to Uhyo world\n");
   SetLogLevel(kWarn);
 
-  // #@@range_begin(new_mouse_cursor)
+  // [6.27] Make instance of MouseCursor Class
   mouse_cursor = new(mouse_cursor_buf) MouseCursor{
     pixel_writer, kDesktopBGColor, {300, 200}
   };
-  // #@@range_end(new_mouse_cursor)
 
+  // [6.17] List PCI Devices
   auto err = pci::ScanAllBus();
   Log(kDebug, "ScanAllBus: %s\n", err.Name());
 
@@ -141,6 +145,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
         vendor_id, class_code, dev.header_type);
   }
 
+  // [6.18] Search Intel List
   pci::Device* xhc_dev = nullptr;
   for (int i = 0; i < pci::num_device; ++i) {
     if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
@@ -155,14 +160,13 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
            xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 
-    // #@@range_begin(read_bar)
+  // [6.19] Read BAR0 Register
   const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
   Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
   const uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
   Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
-  // #@@range_end(read_bar)
 
-  // #@@range_begin(init_xhc)
+  // [6.21] Initialize xHC and run
   usb::xhci::Controller xhc{xhc_mmio_base};
 
   if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
@@ -175,9 +179,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   Log(kInfo, "xHC starting\n");
   xhc.Run();
-  // #@@range_end(init_xhc)
 
-  // #@@range_begin(configure_port)
+  // [6.23] Setting for connected port by searching USB port
   usb::HIDMouseDriver::default_observer = MouseObserver;
 
   for (int i = 1; i <= xhc.MaxPorts(); ++i) {
@@ -192,16 +195,14 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
       }
     }
   }
-  // #@@range_end(configure_port)
 
-  // #@@range_begin(receive_event)
+// [6.24] Execute saved events in the xHC
   while (1) {
     if (auto err = ProcessEvent(xhc)) {
       Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
           err.Name(), err.File(), err.Line());
     }
   }
-  // #@@range_end(receive_event)
 
   while (1) __asm__("hlt");
 }
