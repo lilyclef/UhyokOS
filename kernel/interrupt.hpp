@@ -31,10 +31,10 @@ union InterruptDescriptorAttribute {
 // [7.4] [img 7.3]
 struct InterruptDescriptor {
   uint16_t offset_low;      // 16 bit
-  uint16_t offset_middle;   // +16bit -> 32bit
-  uint32_t offset_high;     // +32bit -> 64bit
   uint16_t segment_selector;// indicate code segment for executing interrupt handler
   InterruptDescriptorAttribute attr;
+  uint16_t offset_middle;   // +16bit -> 32bit
+  uint32_t offset_high;     // +32bit -> 64bit
   uint32_t reserved;
 } __attribute__((packed)); // Prevent complier insets padding between fields.
 
