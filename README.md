@@ -117,3 +117,8 @@ Program Headers:
 - Start Issue driven development
 - When I delete return in the printk function, host OS ubuntu was broken.
 - Now it resolves but awaking QEMU problem has occurred
+
+## 2022/03/03
+- Resolve buggy behavior
+- Don't change order of member variables of struct
+- They're set to the struct in the order
