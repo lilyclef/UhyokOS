@@ -167,12 +167,14 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
       // xHC
       xhc_dev = &pci::devices[i];
-      break;
+      if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
+        break;
+      }
     }
   }
 
   if (xhc_dev) {
-    printk("xHC has been found: %d.%d.%d\n",
+    Log(kInfo, "xHC has been found: %d.%d.%d\n",
            xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 

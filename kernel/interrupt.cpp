@@ -4,12 +4,12 @@
 std::array<InterruptDescriptor, 256> idt;
 
 // [7.5] Implementation of SetIDTEntry
+// x86 architecture has grown 16bits -> 32bits -> 64bits
 void SetIDTEntry(InterruptDescriptor& desc,
                  InterruptDescriptorAttribute attr,
                  uint64_t offset,
                  uint16_t segment_selector) {
   desc.attr = attr;
-  // x86 architecture has grown 16bits -> 32bits -> 64bits
   desc.offset_low = offset & 0xffffu;
   desc.offset_middle = (offset >> 16) & 0xffffu;
   desc.offset_high = offset >> 32;
