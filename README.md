@@ -111,3 +111,22 @@ Program Headers:
 - asmfunc.asm ってなんなのか気になる。あまり良くわかっていないけれど、取り敢えず進んであとから戻る。
 
 - undefined symbol: std::get_new_handler()が出たが、libcxx_support.cppを足したら問題なくなった。
+
+## 2022/03/02
+- Resume developping OS on Ubuntu
+- Start Issue driven development
+- When I delete return in the printk function, host OS ubuntu was broken.
+- Now it resolves but awaking QEMU problem has occurred
+
+## 2022/03/03
+- Resolve buggy behavior
+- Don't change the order of member variables of struct
+- They're set to the struct in the order
+
+## 2022/03/07
+### Inline Assembers
+- cli: Clear Interrupt flag
+  - Interrupt Flag of the CPU is set 0
+- sti: Set Interrupt flag
+  - Interrupt Flag of the CPU is set 1
+- hlt: CPU is set as save power mode since the next intterrupt

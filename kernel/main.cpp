@@ -17,7 +17,9 @@
 #include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
-
+#include "interrupt.hpp"
+#include "asmfunc.h"
+#include "queue.hpp"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -52,6 +54,8 @@ int printk(const char* format, ...) {
   return result;
 }
 
+// Array Queue Lib
+
 // Mouse Lib
 // [6.25] Define MouseObserver()
 char mouse_cursor_buf[sizeof(MouseCursor)];
@@ -83,6 +87,24 @@ void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
       superspeed_ports, ehci2xhci_ports);
 }
 // Mouse Lib End
+
+// [7.1] Definition of Interrupt Handler for xHCI
+usb::xhci::Controller* xhc;
+
+struct Message {
+  enum Type {
+    kInterruptXHCI,
+  } type;
+};
+
+ArrayQueue<Message>* main_queue;
+
+// Compiler inserts Context Save and Return by attribute
+__attribute__((interrupt))
+void IntHandlerXHCI(InterruptFrame* frame) {
+  main_queue->Push(Message{Message::kInterruptXHCI});
+  NotifyEndOfInterrupt();
+}
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -132,6 +154,10 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     pixel_writer, kDesktopBGColor, {300, 200}
   };
 
+  std::array<Message, 32> main_queue_data;
+  ArrayQueue<Message> main_queue{main_queue_data};
+  ::main_queue = &main_queue;
+
   // [6.17] List PCI Devices
   auto err = pci::ScanAllBus();
   Log(kDebug, "ScanAllBus: %s\n", err.Name());
@@ -151,14 +177,32 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
       // xHC
       xhc_dev = &pci::devices[i];
-      break;
+      if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
+        break;
+      }
     }
   }
 
   if (xhc_dev) {
-    printk("xHC has been found: %d.%d.%d\n",
+    Log(kInfo, "xHC has been found: %d.%d.%d\n",
            xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
+
+  // [7.6] Register IDT to CPU by setting interrupt vector 0x40
+  const uint16_t cs = GetCS();
+  SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+              reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+  LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
+
+  // [7.8] Validate MSI Interrupt
+  // Make interrupts in InterruptVector::kXHCI to CPU core id
+  // BSP (Bootstrap Processor)
+  const uint8_t bsp_local_apic_id =
+    *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+  pci::ConfigureMSIFixedDestination(
+      *xhc_dev, bsp_local_apic_id,
+      pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
+      InterruptVector::kXHCI, 0);
 
   // [6.19] Read BAR0 Register
   const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
@@ -180,6 +224,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   Log(kInfo, "xHC starting\n");
   xhc.Run();
 
+  ::xhc = &xhc;
+
   // [6.23] Setting for connected port by searching USB port
   usb::HIDMouseDriver::default_observer = MouseObserver;
 
@@ -196,15 +242,34 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }
   }
 
-// [6.24] Execute saved events in the xHC
-  while (1) {
-    if (auto err = ProcessEvent(xhc)) {
-      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-          err.Name(), err.File(), err.Line());
+  while(true) {
+    // cli: Clear Interrupt flag
+    // Interrupt Flag of the CPU is set 0
+    __asm__("cli");
+    if (main_queue.Count() == 0) {
+      // sti: Set Interrupt flag
+      // Interrupt Flag of the CPU is set 1
+      // hlt : Stop CPU since a new interrupt comes
+      __asm__("sti\n\thlt");
+      continue;
+    }
+    Message msg = main_queue.Front();
+    main_queue.Pop();
+    __asm__("sti");
+
+    switch (msg.type) {
+    case Message::kInterruptXHCI:
+      while (xhc.PrimaryEventRing()->HasFront()) {
+        if (auto err = ProcessEvent(xhc)) {
+          Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+              err.Name(), err.File(), err.Line());
+        }
+      }
+      break;
+    default:
+      Log(kError, "Unknown message type: %d\n", msg.type);
     }
   }
-
-  while (1) __asm__("hlt");
 }
 
 extern "C" void __cxa_pure_virtual() {
