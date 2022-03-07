@@ -19,6 +19,7 @@
 #include "usb/xhci/trb.hpp"
 #include "interrupt.hpp"
 #include "asmfunc.h"
+#include "queue.hpp"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -52,6 +53,8 @@ int printk(const char* format, ...) {
   console->PutString(s);
   return result;
 }
+
+// Array Queue Lib
 
 // Mouse Lib
 // [6.25] Define MouseObserver()
@@ -88,15 +91,18 @@ void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
 // [7.1] Definition of Interrupt Handler for xHCI
 usb::xhci::Controller* xhc;
 
+struct Message {
+  enum Type {
+    kInterruptXHCI,
+  } type;
+};
+
+ArrayQueue<Message>* main_queue;
+
 // Compiler inserts Context Save and Return by attribute
 __attribute__((interrupt))
 void IntHandlerXHCI(InterruptFrame* frame) {
-  while (xhc->PrimaryEventRing()->HasFront()) {
-    if (auto err = ProcessEvent(*xhc)) {
-      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-          err.Name(), err.File(), err.Line());
-    }
-  }
+  main_queue->Push(Message{Message::kInterruptXHCI});
   NotifyEndOfInterrupt();
 }
 
@@ -147,6 +153,10 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   mouse_cursor = new(mouse_cursor_buf) MouseCursor{
     pixel_writer, kDesktopBGColor, {300, 200}
   };
+
+  std::array<Message, 32> main_queue_data;
+  ArrayQueue<Message> main_queue{main_queue_data};
+  ::main_queue = &main_queue;
 
   // [6.17] List PCI Devices
   auto err = pci::ScanAllBus();
@@ -215,7 +225,6 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   xhc.Run();
 
   ::xhc = &xhc;
-  __asm__("sti");
 
   // [6.23] Setting for connected port by searching USB port
   usb::HIDMouseDriver::default_observer = MouseObserver;
@@ -233,7 +242,34 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }
   }
 
-  while (1) __asm__("hlt");
+  while(true) {
+    // cli: Clear Interrupt flag
+    // Interrupt Flag of the CPU is set 0
+    __asm__("cli");
+    if (main_queue.Count() == 0) {
+      // sti: Set Interrupt flag
+      // Interrupt Flag of the CPU is set 1
+      // hlt : Stop CPU since a new interrupt comes
+      __asm__("sti\n\thlt");
+      continue;
+    }
+    Message msg = main_queue.Front();
+    main_queue.Pop();
+    __asm__("sti");
+
+    switch (msg.type) {
+    case Message::kInterruptXHCI:
+      while (xhc.PrimaryEventRing()->HasFront()) {
+        if (auto err = ProcessEvent(xhc)) {
+          Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+              err.Name(), err.File(), err.Line());
+        }
+      }
+      break;
+    default:
+      Log(kError, "Unknown message type: %d\n", msg.type);
+    }
+  }
 }
 
 extern "C" void __cxa_pure_virtual() {

@@ -120,5 +120,13 @@ Program Headers:
 
 ## 2022/03/03
 - Resolve buggy behavior
-- Don't change order of member variables of struct
+- Don't change the order of member variables of struct
 - They're set to the struct in the order
+
+## 2022/03/07
+### Inline Assembers
+- cli: Clear Interrupt flag
+  - Interrupt Flag of the CPU is set 0
+- sti: Set Interrupt flag
+  - Interrupt Flag of the CPU is set 1
+- hlt: CPU is set as save power mode since the next intterrupt
