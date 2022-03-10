@@ -36,3 +36,60 @@ LoadIDT:
     mov rsp, rbp
     pop rbp
     ret
+
+; [8.12] Register location and size of GDT to GDTR
+global LoadGDT  ; void LoadGDT(uint16_t limit, uint64_t offset);
+LoadGDT:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 10
+    mov [rsp], di  ; limit
+    mov [rsp + 2], rsi  ; offset
+    lgdt [rsp]
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; Set CS register
+global SetCSSS  ; void SetCSSS(uint16_t cs, uint16_t ss);
+SetCSSS:
+    push rbp
+    mov rbp, rsp
+    mov ss, si
+    mov rax, .next
+    push rdi    ; CS
+    push rax    ; RIP
+    o64 retf
+.next:
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; Set DS SS register
+global SetDSAll  ; void SetDSAll(uint16_t value);
+SetDSAll:
+    mov ds, di
+    mov es, di
+    mov fs, di
+    mov gs, di
+    ret
+
+; Write val to CR3 Register
+global SetCR3  ; void SetCR3(uint64_t value);
+SetCR3:
+    mov cr3, rdi
+    ret
+
+extern kernel_main_stack
+extern KernelMainNewStack
+
+global KernelMain
+; RSP is set to the last address of kernel_main_stack
+KernelMain:
+    mov rsp, kernel_main_stack + 1024 * 1024
+    call KernelMainNewStack
+
+; Although we expect KernelMainNewStack doesn't return, but we prepare endless loop in the case it returns.
+.fin:
+    hlt
+    jmp .fin

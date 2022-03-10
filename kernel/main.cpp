@@ -21,6 +21,8 @@
 #include "interrupt.hpp"
 #include "asmfunc.h"
 #include "queue.hpp"
+#include "segment.hpp"
+#include "paging.hpp"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -111,7 +113,13 @@ void IntHandlerXHCI(InterruptFrame* frame) {
   KernelMain()がブートローダから呼び出される
   エントリポイントと呼ぶ
 */
-extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config, const MemoryMap& memory_map) {
+// [8.6]
+alignas(16) uint8_t kernel_main_stack[1024 * 1024];
+
+extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref) {
+  FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
+  MemoryMap memory_map{memory_map_ref};
+
   switch (frame_buffer_config.pixel_format) {
   case kPixelRGBResv8BitPerColor:
     // このnewは配置newというもの
@@ -150,27 +158,27 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config, const M
   printk("Welcome to Uhyo world\n");
   SetLogLevel(kWarn);
 
-  const std::array available_memory_types{
-    MemoryType::kEfiBootServicesCode,
-    MemoryType::kEfiBootServicesData,
-    MemoryType::kEfiConventionalMemory,
-  };
+  SetupSegments();
 
-  printk("memory_map: %p\n", &memory_map);
+  const uint16_t kernel_cs = 1 << 3;
+  const uint16_t kernel_ss = 2 << 3;
+  SetDSAll(0);
+  SetCSSS(kernel_cs, kernel_ss);
+
+  SetupIdentityPageTable();
+  const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
   // メモリマップはメモリディスクリプタの配列->順番に表示
   for (uintptr_t iter = reinterpret_cast<uintptr_t>(memory_map.buffer);
-       iter < reinterpret_cast<uintptr_t>(memory_map.buffer) + memory_map.map_size;
-       iter += memory_map.descriptor_size) {
+    iter < reinterpret_cast<uintptr_t>(memory_map.buffer) + memory_map.map_size;
+    iter += memory_map.descriptor_size) {
     auto desc = reinterpret_cast<MemoryDescriptor*>(iter);
-    for (int i = 0; i < available_memory_types.size(); ++i) {
-      if (desc->type == available_memory_types[i]) {
-        printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
-            desc->type,
-            desc->physical_start,
-            desc->physical_start + desc->number_of_pages * 4096 - 1,
-            desc->number_of_pages,
-            desc->attribute);
-      }
+    if (IsAvailable(static_cast<MemoryType>(desc->type))) {
+      printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
+      desc->type,
+      desc->physical_start,
+      desc->physical_start + desc->number_of_pages * 4096 - 1,
+      desc->number_of_pages,
+      desc->attribute);
     }
   }
 
@@ -214,9 +222,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config, const M
   }
 
   // [7.6] Register IDT to CPU by setting interrupt vector 0x40
-  const uint16_t cs = GetCS();
   SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
-              reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+              reinterpret_cast<uint64_t>(IntHandlerXHCI), kernel_cs);
   LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
 
   // [7.8] Validate MSI Interrupt
