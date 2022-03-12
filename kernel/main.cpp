@@ -23,6 +23,7 @@
 #include "queue.hpp"
 #include "segment.hpp"
 #include "paging.hpp"
+#include "memory_manager.hpp"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -57,7 +58,8 @@ int printk(const char* format, ...) {
   return result;
 }
 
-// Array Queue Lib
+char memory_manager_buf[sizeof(BitmapMemoryManager)];
+BitmapMemoryManager* memory_manager;
 
 // Mouse Lib
 // [6.25] Define MouseObserver()
@@ -155,7 +157,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   console = new(console_buf) Console{
     *pixel_writer, kDesktopFGColor, kDesktopBGColor
   };
-  printk("Welcome to Uhyo world\n");
+  printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
 
   SetupSegments();
@@ -166,22 +168,39 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   SetCSSS(kernel_cs, kernel_ss);
 
   SetupIdentityPageTable();
+  ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
+
   const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
+   uintptr_t available_end = 0;
+  printk("Welcome to Uhyo world!3\n");
   // メモリマップはメモリディスクリプタの配列->順番に表示
-  for (uintptr_t iter = reinterpret_cast<uintptr_t>(memory_map.buffer);
-    iter < reinterpret_cast<uintptr_t>(memory_map.buffer) + memory_map.map_size;
-    iter += memory_map.descriptor_size) {
-    auto desc = reinterpret_cast<MemoryDescriptor*>(iter);
+  for (uintptr_t iter = memory_map_base;
+       iter < memory_map_base + memory_map.map_size;
+       iter += memory_map.descriptor_size) {
+    auto desc = reinterpret_cast<const MemoryDescriptor*>(iter);
+    if (available_end < desc->physical_start) {
+      memory_manager->MarkAllocated(
+          FrameID{available_end / kBytesPerFrame},
+          (desc->physical_start - available_end) / kBytesPerFrame);
+    }
+    printk("Welcome to Uhyo world!3.5\n");
+    const auto physical_end =
+      desc->physical_start + desc->number_of_pages * kUEFIPageSize;
     if (IsAvailable(static_cast<MemoryType>(desc->type))) {
-      printk("type = %u, phys = %08lx - %08lx, pages = %lu, attr = %08lx\n",
-      desc->type,
-      desc->physical_start,
-      desc->physical_start + desc->number_of_pages * 4096 - 1,
-      desc->number_of_pages,
-      desc->attribute);
+      printk("Welcome to Uhyo world!3.5.1\n");
+      available_end = physical_end;
+    } else {
+      printk("Welcome to Uhyo world!3.5.2\n");
+      printk("fst %ld", desc->physical_start / kBytesPerFrame);
+      printk("snd %ld", desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
+      memory_manager->MarkAllocated(
+          FrameID{desc->physical_start / kBytesPerFrame},
+          desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
+      printk("Welcome to Uhyo world!3.5.3\n");
     }
   }
-
+printk("Welcome to Uhyo world!4\n");
+  memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
   // [6.27] Make instance of MouseCursor Class
   mouse_cursor = new(mouse_cursor_buf) MouseCursor{
     pixel_writer, kDesktopBGColor, {300, 200}

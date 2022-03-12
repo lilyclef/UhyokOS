@@ -83,8 +83,8 @@ SetCR3:
 extern kernel_main_stack
 extern KernelMainNewStack
 
-global KernelMain
 ; RSP is set to the last address of kernel_main_stack
+global KernelMain
 KernelMain:
     mov rsp, kernel_main_stack + 1024 * 1024
     call KernelMainNewStack
