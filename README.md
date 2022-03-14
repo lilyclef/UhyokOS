@@ -130,3 +130,8 @@ Program Headers:
 - sti: Set Interrupt flag
   - Interrupt Flag of the CPU is set 1
 - hlt: CPU is set as save power mode since the next intterrupt
+
+## 2022/03/14
+- Finish $8 memory_map
+- Loader needs symbol link for memory_map.h because Main.c needs.
+- Check Loader side and build again when change Loader codes
