@@ -40,3 +40,23 @@ void FillRectangle(PixelWriter& writer, const Vector2D<int>& pos,
     }
   }
 }
+
+void DrawDesktop(PixelWriter& writer) {
+  const auto width = writer.Width();
+  const auto height = writer.Height();
+  // Background
+  FillRectangle(writer,
+                {0, 0},
+                {width, height - 50},
+                kDesktopBGColor);
+  // Tool Bar
+  FillRectangle(writer,
+                {0, height - 50},
+                {width, 50},
+                {243, 139, 160});
+  // Start Menu
+  FillRectangle(writer,
+                {0, height - 50},
+                {width / 5, 50},
+                {237, 246, 229});
+}
