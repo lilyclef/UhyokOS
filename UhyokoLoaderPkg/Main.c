@@ -12,17 +12,9 @@
 #include  <Guid/FileInfo.h>
 
 #include  "frame_buffer_config.hpp"
+#include  "memory_map.hpp"
 #include  "elf.hpp"
 
-/* メモリマップという構造体を作り、メモリの状態を保管する */
-struct MemoryMap {
-  UINTN buffer_size;
-  VOID* buffer;
-  UINTN map_size;
-  UINTN map_key;
-  UINTN descriptor_size;
-  UINT32 descriptor_version;
-};
 
 /*
    メモリマップを習得
@@ -385,9 +377,9 @@ EFI_STATUS EFIAPI UefiMain(
       Halt();
   }
 
-  typedef void __attribute__((sysv_abi)) EntryPointType(const struct FrameBufferConfig*);
+  typedef void __attribute__((sysv_abi)) EntryPointType(const struct FrameBufferConfig*, const struct MemoryMap*);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
-  entry_point(&config);
+  entry_point(&config, &memmap);
 
   Print(L"Kernel is called (:3 \n");
   // (:3 カーネル呼び出し end

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "frame_buffer_config.hpp"
+#include "memory_map.hpp"
 #include "graphics.hpp"
 #include "mouse.hpp"
 #include "font.hpp"
@@ -20,6 +21,9 @@
 #include "interrupt.hpp"
 #include "asmfunc.h"
 #include "queue.hpp"
+#include "segment.hpp"
+#include "paging.hpp"
+#include "memory_manager.hpp"
 
 // (:3 配置newを設定するための準備 begin
 /*void* operator new(size_t size, void* buf) {
@@ -54,7 +58,8 @@ int printk(const char* format, ...) {
   return result;
 }
 
-// Array Queue Lib
+char memory_manager_buf[sizeof(BitmapMemoryManager)];
+BitmapMemoryManager* memory_manager;
 
 // Mouse Lib
 // [6.25] Define MouseObserver()
@@ -110,7 +115,13 @@ void IntHandlerXHCI(InterruptFrame* frame) {
   KernelMain()がブートローダから呼び出される
   エントリポイントと呼ぶ
 */
-extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
+// [8.6]
+alignas(16) uint8_t kernel_main_stack[1024 * 1024];
+
+extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref) {
+  FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
+  MemoryMap memory_map{memory_map_ref};
+
   switch (frame_buffer_config.pixel_format) {
   case kPixelRGBResv8BitPerColor:
     // このnewは配置newというもの
@@ -146,9 +157,50 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   console = new(console_buf) Console{
     *pixel_writer, kDesktopFGColor, kDesktopBGColor
   };
-  printk("Welcome to Uhyo world\n");
+  printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
 
+  SetupSegments();
+
+  const uint16_t kernel_cs = 1 << 3;
+  const uint16_t kernel_ss = 2 << 3;
+  SetDSAll(0);
+  SetCSSS(kernel_cs, kernel_ss);
+
+  SetupIdentityPageTable();
+  ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
+
+  const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
+   uintptr_t available_end = 0;
+  printk("Welcome to Uhyo world!3\n");
+  // メモリマップはメモリディスクリプタの配列->順番に表示
+  for (uintptr_t iter = memory_map_base;
+       iter < memory_map_base + memory_map.map_size;
+       iter += memory_map.descriptor_size) {
+    auto desc = reinterpret_cast<const MemoryDescriptor*>(iter);
+    if (available_end < desc->physical_start) {
+      memory_manager->MarkAllocated(
+          FrameID{available_end / kBytesPerFrame},
+          (desc->physical_start - available_end) / kBytesPerFrame);
+    }
+    printk("Welcome to Uhyo world!3.5\n");
+    const auto physical_end =
+      desc->physical_start + desc->number_of_pages * kUEFIPageSize;
+    if (IsAvailable(static_cast<MemoryType>(desc->type))) {
+      printk("Welcome to Uhyo world!3.5.1\n");
+      available_end = physical_end;
+    } else {
+      printk("Welcome to Uhyo world!3.5.2\n");
+      printk("fst %ld", desc->physical_start / kBytesPerFrame);
+      printk("snd %ld", desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
+      memory_manager->MarkAllocated(
+          FrameID{desc->physical_start / kBytesPerFrame},
+          desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
+      printk("Welcome to Uhyo world!3.5.3\n");
+    }
+  }
+printk("Welcome to Uhyo world!4\n");
+  memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
   // [6.27] Make instance of MouseCursor Class
   mouse_cursor = new(mouse_cursor_buf) MouseCursor{
     pixel_writer, kDesktopBGColor, {300, 200}
@@ -189,9 +241,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   }
 
   // [7.6] Register IDT to CPU by setting interrupt vector 0x40
-  const uint16_t cs = GetCS();
   SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
-              reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+              reinterpret_cast<uint64_t>(IntHandlerXHCI), kernel_cs);
   LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
 
   // [7.8] Validate MSI Interrupt
