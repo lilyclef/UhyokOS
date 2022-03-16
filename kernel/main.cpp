@@ -26,6 +26,7 @@
 #include "memory_manager.hpp"
 #include "window.hpp"
 #include "layer.hpp"
+#include "timer.hpp"
 
 // (:3 グローバル変数 begin
 
@@ -56,9 +57,14 @@ BitmapMemoryManager* memory_manager;
 // [9.19] Define MouseObserver()
 unsigned int mouse_layer_id;
 
+// [9.29] calc time of mouse move
 void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
   layer_manager->MoveRelative(mouse_layer_id, {displacement_x, displacement_y});
+  StartLAPICTimer();
   layer_manager->Draw();
+  auto elapsed = LAPICTimerElapsed();
+  StopLAPICTimer();
+  printk("MouseObserver: elapsed = %u\n", elapsed);
 }
 
 // [6.22] Change control mode of USB port
@@ -134,6 +140,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   console->SetWriter(pixel_writer);
   printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
+  InitializeLAPICTimer();
 
   SetupSegments();
 
