@@ -37,17 +37,17 @@ Layer& Layer::MoveRelative(Vector2D<int> pos_diff) {
 // #@@range_end(layer_move)
 
 // #@@range_begin(layer_drawto)
-void Layer::DrawTo(PixelWriter& writer) const {
+void Layer::DrawTo(FrameBuffer& screen) const {
   if (window_) {
-    window_->DrawTo(writer, pos_);
+    window_->DrawTo(screen, pos_);
   }
 }
 // #@@range_end(layer_drawto)
 
 
 // #@@range_begin(layermgr_setwriter)
-void LayerManager::SetWriter(PixelWriter* writer) {
-  writer_ = writer;
+void LayerManager::SetWriter(FrameBuffer* screen) {
+  screen_ = screen;
 }
 // #@@range_end(layermgr_setwriter)
 
@@ -61,7 +61,7 @@ Layer& LayerManager::NewLayer() {
 // #@@range_begin(layermgr_draw)
 void LayerManager::Draw() const {
   for (auto layer : layer_stack_) {
-    layer->DrawTo(*writer_);
+    layer->DrawTo(*screen_);
   }
 }
 // #@@range_end(layermgr_draw)
