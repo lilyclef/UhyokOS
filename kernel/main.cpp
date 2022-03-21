@@ -293,6 +293,14 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
   mouse_position = {200, 200};
 
+  // [10.4]
+  auto main_window = std::make_shared<Window>(
+      160, 68, frame_buffer_config.pixel_format);
+  DrawWindow(*main_window->Writer(), "Application");
+  WriteString(*main_window->Writer(), {24, 28}, "(:3 ", kDesktopFGColor);
+  WriteString(*main_window->Writer(), {24, 44}, "Uhyo", kDesktopFGColor);
+
+
   FrameBuffer screen;
   if (auto err = screen.Initialize(frame_buffer_config)) {
     Log(kError, "failed to initialize frame buffer: %s at %s:%d\n",
@@ -311,8 +319,15 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     .Move(mouse_position)
     .ID();
 
+  // [10.5]
+  auto main_window_layer_id = layer_manager->NewLayer()
+    .SetWindow(main_window)
+    .Move({300, 100})
+    .ID();
+
   layer_manager->UpDown(bglayer_id, 0);
   layer_manager->UpDown(mouse_layer_id, 1);
+  layer_manager->UpDown(main_window_layer_id, 1);
   layer_manager->Draw();
 
   while(true) {
