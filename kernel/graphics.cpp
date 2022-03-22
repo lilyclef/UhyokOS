@@ -41,15 +41,46 @@ void FillRectangle(PixelWriter& writer, const Vector2D<int>& pos,
   }
 }
 
+bool isRectangleRound(int x, int y, int max_x, int max_y, int r) {
+  return !(r >= x + y) && !(y <= - max_x + x + r) && !(max_x + max_y - r <= x + y) && !(max_y - r + x <= y);
+}
+
+void FillRectangleRound(PixelWriter& writer, const Vector2D<int>& pos,
+                   const Vector2D<int>& size, const PixelColor& c, int round) {
+  for (int dy = 0; dy < size.y; ++dy) {
+    for (int dx = 0; dx < size.x; ++dx) {
+      if (isRectangleRound(dx, dy, size.x, size.y, round)) {
+        writer.Write(pos + Vector2D<int>{dx, dy}, c);
+      }
+    }
+  }
+}
+
+bool isRectangleRoundUpper(int x, int y, int max_x, int max_y, int r) {
+  return !(r >= x + y) && !(y <= - max_x + x + r);
+}
+
+void FillRectangleRoundUpper(PixelWriter& writer, const Vector2D<int>& pos,
+                   const Vector2D<int>& size, const PixelColor& c, int round) {
+  for (int dy = 0; dy < size.y; ++dy) {
+    for (int dx = 0; dx < size.x; ++dx) {
+      if (isRectangleRoundUpper(dx, dy, size.x, size.y, round)) {
+        writer.Write(pos + Vector2D<int>{dx, dy}, c);
+      }
+    }
+  }
+}
+
+
 void DrawDesktop(PixelWriter& writer) {
   const auto width = writer.Width();
   const auto height = writer.Height();
   // Background
   FillRectangle(writer,
                 {0, 0},
-                {width, height - 50},
+                {width, height},
                 kDesktopBGColor);
-  // Tool Bar
+  /*// Tool Bar
   FillRectangle(writer,
                 {0, height - 50},
                 {width, 50},
@@ -58,5 +89,5 @@ void DrawDesktop(PixelWriter& writer) {
   FillRectangle(writer,
                 {0, height - 50},
                 {width / 5, 50},
-                {237, 246, 229});
+                {237, 246, 229});*/
 }

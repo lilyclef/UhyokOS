@@ -91,6 +91,11 @@ void DrawRectangle(PixelWriter& writer, const Vector2D<int>& pos,
 void FillRectangle(PixelWriter& writer, const Vector2D<int>& pos,
                    const Vector2D<int>& size, const PixelColor& c);
 
+void FillRectangleRound(PixelWriter& writer, const Vector2D<int>& pos,
+                   const Vector2D<int>& size, const PixelColor& c, int round);
+
+void FillRectangleRoundUpper(PixelWriter& writer, const Vector2D<int>& pos,
+                   const Vector2D<int>& size, const PixelColor& c, int round);
 
 const PixelColor kDesktopBGColor{181, 234, 234};
 const PixelColor kDesktopFGColor{142, 127, 127};
