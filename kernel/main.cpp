@@ -66,7 +66,6 @@ void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
   mouse_position = ElementMax(newpos, {0, 0});
 
   layer_manager->Move(mouse_layer_id, mouse_position);
-  layer_manager->Draw();
 }
 
 // [6.22] Change control mode of USB port
@@ -285,7 +284,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   auto bgwriter = bgwindow->Writer();
 
   DrawDesktop(*bgwriter);
-  console->SetWindow(bgwindow);
 
   auto mouse_window = std::make_shared<Window>(
       kMouseCursorWidth, kMouseCursorHeight, frame_buffer_config.pixel_format);
@@ -295,11 +293,14 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   // [10.4]
   auto main_window = std::make_shared<Window>(
-      250, 80, frame_buffer_config.pixel_format);
+      250, 100, frame_buffer_config.pixel_format);
   DrawWindow(*main_window->Writer(), "Application");
   WriteString(*main_window->Writer(), {24, 28}, "Ashitamo I-hini naruyone?", kDesktopFGColor);
   WriteString(*main_window->Writer(), {24, 44}, "Uhyo~(:3", kDesktopFGColor);
 
+  auto console_window = std::make_shared<Window>(
+      Console::kColumns * 8, Console::kRows * 16, frame_buffer_config.pixel_format);
+  console->SetWindow(console_window);
 
   FrameBuffer screen;
   if (auto err = screen.Initialize(frame_buffer_config)) {
@@ -325,12 +326,29 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     .Move({300, 100})
     .ID();
 
+  console->SetLayerID(layer_manager->NewLayer()
+    .SetWindow(console_window)
+    .Move({0, 0})
+    .ID());
+
   layer_manager->UpDown(bglayer_id, 0);
-  layer_manager->UpDown(mouse_layer_id, 1);
-  layer_manager->UpDown(main_window_layer_id, 1);
-  layer_manager->Draw();
+  layer_manager->UpDown(console->LayerID(), 1);
+  layer_manager->UpDown(main_window_layer_id, 2);
+  layer_manager->UpDown(mouse_layer_id, 3);
+  layer_manager->Draw({{0, 0}, screen_size});
+
+  // [10.9]
+  char counter_str[128];
+  unsigned int counter = 0;
 
   while(true) {
+    // [10.10]
+    ++counter;
+    sprintf(counter_str, "%010u", counter);
+    FillRectangle(*main_window->Writer(), {24, 66}, {8 * 10, 16}, {255, 251, 233});
+    WriteString(*main_window->Writer(), {24, 66}, counter_str, kDesktopFGColor);
+    layer_manager->Draw(main_window_layer_id);
+
     // cli: Clear Interrupt flag
     // Interrupt Flag of the CPU is set 0
     __asm__("cli");
@@ -338,7 +356,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       // sti: Set Interrupt flag
       // Interrupt Flag of the CPU is set 1
       // hlt : Stop CPU since a new interrupt comes
-      __asm__("sti\n\thlt");
+      __asm__("sti");
       continue;
     }
     Message msg = main_queue.Front();

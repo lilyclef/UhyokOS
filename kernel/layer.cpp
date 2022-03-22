@@ -24,6 +24,10 @@ std::shared_ptr<Window> Layer::GetWindow() const {
 }
 // #@@range_end(layer_setget_window)
 
+Vector2D<int> Layer::GetPosition() const {
+  return pos_;
+}
+
 // #@@range_begin(layer_move)
 Layer& Layer::Move(Vector2D<int> pos) {
   pos_ = pos;
@@ -37,9 +41,9 @@ Layer& Layer::MoveRelative(Vector2D<int> pos_diff) {
 // #@@range_end(layer_move)
 
 // #@@range_begin(layer_drawto)
-void Layer::DrawTo(FrameBuffer& screen) const {
+void Layer::DrawTo(FrameBuffer& screen, const Rectangle<int>& area) const {
   if (window_) {
-    window_->DrawTo(screen, pos_);
+    window_->DrawTo(screen, pos_, area);
   }
 }
 // #@@range_end(layer_drawto)
@@ -59,20 +63,46 @@ Layer& LayerManager::NewLayer() {
 // #@@range_end(layermgr_newlayer)
 
 // #@@range_begin(layermgr_draw)
-void LayerManager::Draw() const {
+void LayerManager::Draw(const Rectangle<int>& area) const {
   for (auto layer : layer_stack_) {
-    layer->DrawTo(*screen_);
+    layer->DrawTo(*screen_, area);
   }
 }
+
+void LayerManager::Draw(unsigned int id) const {
+  bool draw = false;
+  Rectangle<int> window_area;
+  for (auto layer : layer_stack_) {
+    if (layer->ID() == id) {
+      window_area.size = layer->GetWindow()->Size();
+      window_area.pos = layer->GetPosition();
+      draw = true;
+    }
+    if (draw) {
+      layer->DrawTo(*screen_, window_area);
+    }
+  }
+}
+
 // #@@range_end(layermgr_draw)
 
 // #@@range_begin(layermgr_move)
-void LayerManager::Move(unsigned int id, Vector2D<int> new_position) {
-  FindLayer(id)->Move(new_position);
-}
+void LayerManager::Move(unsigned int id, Vector2D<int> new_pos) {
+  auto layer = FindLayer(id);
+  const auto window_size = layer->GetWindow()->Size();
+  const auto old_pos = layer->GetPosition();
+  layer->Move(new_pos);
+  Draw({old_pos, window_size});
+  Draw(id);
+ }
 
 void LayerManager::MoveRelative(unsigned int id, Vector2D<int> pos_diff) {
-  FindLayer(id)->MoveRelative(pos_diff);
+  auto layer = FindLayer(id);
+  const auto window_size = layer->GetWindow()->Size();
+  const auto old_pos = layer->GetPosition();
+  layer->MoveRelative(pos_diff);
+  Draw({old_pos, window_size});
+  Draw(id);
 }
 // #@@range_end(layermgr_move)
 
