@@ -295,10 +295,10 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   // [10.4]
   auto main_window = std::make_shared<Window>(
-      160, 68, frame_buffer_config.pixel_format);
+      250, 80, frame_buffer_config.pixel_format);
   DrawWindow(*main_window->Writer(), "Application");
-  WriteString(*main_window->Writer(), {24, 28}, "(:3 ", kDesktopFGColor);
-  WriteString(*main_window->Writer(), {24, 44}, "Uhyo", kDesktopFGColor);
+  WriteString(*main_window->Writer(), {24, 28}, "Ashitamo I-hini naruyone?", kDesktopFGColor);
+  WriteString(*main_window->Writer(), {24, 44}, "Uhyo~(:3", kDesktopFGColor);
 
 
   FrameBuffer screen;
