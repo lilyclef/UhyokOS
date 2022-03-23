@@ -83,13 +83,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
 
-  SetupSegments();
-
-  const uint16_t kernel_cs = 1 << 3;
-  const uint16_t kernel_ss = 2 << 3;
-  SetDSAll(0);
-  SetCSSS(kernel_cs, kernel_ss);
-
   SetupIdentityPageTable();
   ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
 
@@ -128,7 +121,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     Log(kError, "failed to allocate pages: %s at%s:%d\n", err.Name(), err.File(), err.Line());
     exit(1);
   }
-  //InitializeSegmentation();
+  InitializeSegmentation();
   //InitializePaging();
   //InitializeMemoryManager(memory_map);
   ::main_queue = new std::deque<Message>(32);
