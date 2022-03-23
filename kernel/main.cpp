@@ -47,43 +47,6 @@ int printk(const char* format, ...) {
 char memory_manager_buf[sizeof(BitmapMemoryManager)];
 BitmapMemoryManager* memory_manager;
 
-// Mouse Lib
-// [9.19] Define MouseObserver()
-unsigned int mouse_layer_id;
-Vector2D<int> screen_size;
-Vector2D<int> mouse_position;
-
-
-void MouseObserver(uint8_t buttons, int8_t displacement_x, int8_t displacement_y) {
-  static unsigned int mouse_drag_layer_id = 0;
-  static uint8_t previous_buttons = 0;
-
-  const auto oldpos = mouse_position;
-   auto newpos = mouse_position + Vector2D<int>{displacement_x, displacement_y};
-   newpos = ElementMin(newpos, screen_size + Vector2D<int>{-1, -1});
-   mouse_position = ElementMax(newpos, {0, 0});
- 
-  const auto posdiff = mouse_position - oldpos;
-
-   layer_manager->Move(mouse_layer_id, mouse_position);
-
-  const bool previous_left_pressed = (previous_buttons & 0x01);
-  const bool left_pressed = (buttons & 0x01);
-  if (!previous_left_pressed && left_pressed) {
-    auto layer = layer_manager->FindLayerByPosition(mouse_position, mouse_layer_id);
-    if (layer && layer->IsDraggable()) {
-      mouse_drag_layer_id = layer->ID();
-    }
-  } else if (previous_left_pressed && left_pressed) {
-    if (mouse_drag_layer_id > 0) {
-      layer_manager->MoveRelative(mouse_drag_layer_id, posdiff);
-    }
-  } else if (previous_left_pressed && !left_pressed) {
-    mouse_drag_layer_id = 0;
-  }
-  previous_buttons = buttons;
- }
-
 std::shared_ptr<Window> main_window;
 unsigned int main_window_layer_id;
 void InitializeMainWindow() {
@@ -103,10 +66,6 @@ void InitializeMainWindow() {
   layer_manager->UpDown(main_window_layer_id, std::numeric_limits<int>::max());
 
 }
-// Mouse Lib End
-
-// [7.1] Definition of Interrupt Handler for xHCI
-usb::xhci::Controller* xhc;
 
 std::deque<Message>* main_queue;
 
@@ -184,18 +143,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         vendor_id, class_code, dev.header_type);
   }
 
-  // [6.23] Setting for connected port by searching USB port
-  usb::HIDMouseDriver::default_observer = MouseObserver;
-
-  // [9.20] Generate 2 layers
-  screen_size.x = screen_config.horizontal_resolution;
-  screen_size.y = screen_config.vertical_resolution;
-
-  auto mouse_window = std::make_shared<Window>(
-      kMouseCursorWidth, kMouseCursorHeight, screen_config.pixel_format);
-  mouse_window->SetTransparentColor(kMouseTransparentColor);
-  DrawMouseCursor(mouse_window->Writer(), {0, 0});
-  mouse_position = {200, 200};
   //InitializeSegmentation();
   //InitializePaging();
   //InitializeMemoryManager(memory_map);
@@ -206,14 +153,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   usb::xhci::Initialize();
   InitializeLayer();
   InitializeMainWindow();
-  //InitializeMouse();
+  InitializeMouse();
 
-
-  mouse_layer_id = layer_manager->NewLayer()
-    .SetWindow(mouse_window)
-    .Move(mouse_position)
-    .ID();
-  layer_manager->UpDown(mouse_layer_id, 3);
   layer_manager->Draw({{0, 0}, ScreenSize()});
 
   // [10.9]
