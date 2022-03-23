@@ -83,7 +83,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
 
-  SetupIdentityPageTable();
   ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
 
   const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
@@ -122,7 +121,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     exit(1);
   }
   InitializeSegmentation();
-  //InitializePaging();
+  InitializePaging();
   //InitializeMemoryManager(memory_map);
   ::main_queue = new std::deque<Message>(32);
 
