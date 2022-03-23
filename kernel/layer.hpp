@@ -18,7 +18,7 @@
  * 現状では 1 つのウィンドウしか保持できない設計だが，
  * 将来的には複数のウィンドウを持ち得る。
  */
-// #@@range_begin(layer)
+
 class Layer {
  public:
   /** @brief 指定された ID を持つレイヤーを生成する。 */
@@ -52,10 +52,8 @@ class Layer {
   std::shared_ptr<Window> window_{};
   bool draggable_{false};
 };
-// #@@range_end(layer)
 
 /** @brief LayerManager は複数のレイヤーを管理する。 */
-// #@@range_begin(layer_manager)
 class LayerManager {
  public:
   /** @brief Draw メソッドなどで描画する際の描画先を設定する。 */
@@ -99,4 +97,4 @@ class LayerManager {
 };
 
 extern LayerManager* layer_manager;
-// #@@range_end(layer_manager)
+void InitializeLayer();

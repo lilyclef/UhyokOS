@@ -83,6 +83,25 @@ void MouseObserver(uint8_t buttons, int8_t displacement_x, int8_t displacement_y
   previous_buttons = buttons;
  }
 
+std::shared_ptr<Window> main_window;
+unsigned int main_window_layer_id;
+void InitializeMainWindow() {
+  main_window = std::make_shared<Window>(
+      250, 100, screen_config.pixel_format);
+  DrawWindow(*main_window->Writer(), "Application");
+  WriteString(*main_window->Writer(), {24, 28}, "Ashitamo I-hini naruyone?", kDesktopFGColor);
+  WriteString(*main_window->Writer(), {24, 44}, "Uhyo~(:3", kDesktopFGColor);
+
+
+  main_window_layer_id = layer_manager->NewLayer()
+    .SetWindow(main_window)
+    .SetDraggable(true)
+    .Move({300, 100})
+    .ID();
+
+  layer_manager->UpDown(main_window_layer_id, std::numeric_limits<int>::max());
+}
+
 // [6.22] Change control mode of USB port
 void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
   bool intel_ehc_exist = false;
@@ -275,64 +294,25 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   screen_size.x = screen_config.horizontal_resolution;
   screen_size.y = screen_config.vertical_resolution;
 
-  auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, screen_config.pixel_format);
-  
-  auto bgwriter = bgwindow->Writer();
-
-  DrawDesktop(*bgwriter);
-
   auto mouse_window = std::make_shared<Window>(
       kMouseCursorWidth, kMouseCursorHeight, screen_config.pixel_format);
   mouse_window->SetTransparentColor(kMouseTransparentColor);
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
   mouse_position = {200, 200};
 
-  // [10.4]
-  auto main_window = std::make_shared<Window>(
-      250, 100, screen_config.pixel_format);
-  DrawWindow(*main_window->Writer(), "Application");
-  WriteString(*main_window->Writer(), {24, 28}, "Ashitamo I-hini naruyone?", kDesktopFGColor);
-  WriteString(*main_window->Writer(), {24, 44}, "Uhyo~(:3", kDesktopFGColor);
+  //InitializePCI();
+  //usb::xhci::Initialize();
+  InitializeLayer();
+  InitializeMainWindow();
+  //InitializeMouse();
 
-  auto console_window = std::make_shared<Window>(
-      Console::kColumns * 8, Console::kRows * 16, screen_config.pixel_format);
-  console->SetWindow(console_window);
 
-  FrameBuffer screen;
-  if (auto err = screen.Initialize(screen_config)) {
-    Log(kError, "failed to initialize frame buffer: %s at %s:%d\n",
-    err.Name(), err.File(), err.Line());
-  }
-
-  layer_manager = new LayerManager;
-  layer_manager->SetWriter(&screen);
-
-  auto bglayer_id = layer_manager->NewLayer()
-    .SetWindow(bgwindow)
-    .Move({0, 0})
-    .ID();
   mouse_layer_id = layer_manager->NewLayer()
     .SetWindow(mouse_window)
     .Move(mouse_position)
     .ID();
-
-  // [10.5]
-  auto main_window_layer_id = layer_manager->NewLayer()
-    .SetWindow(main_window)
-    .SetDraggable(true)
-    .Move({300, 100})
-    .ID();
-
-  console->SetLayerID(layer_manager->NewLayer()
-    .SetWindow(console_window)
-    .Move({0, 0})
-    .ID());
-
-  layer_manager->UpDown(bglayer_id, 0);
-  layer_manager->UpDown(console->LayerID(), 1);
-  layer_manager->UpDown(main_window_layer_id, 2);
   layer_manager->UpDown(mouse_layer_id, 3);
-  layer_manager->Draw({{0, 0}, screen_size});
+  layer_manager->Draw({{0, 0}, ScreenSize()});
 
   // [10.9]
   char counter_str[128];

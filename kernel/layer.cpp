@@ -1,6 +1,8 @@
 #include "layer.hpp"
 
 #include <algorithm>
+#include "console.hpp"
+#include "logger.hpp"
 
 // #@@range_begin(layer_ctor)
 Layer::Layer(unsigned int id) : id_{id} {
@@ -38,7 +40,6 @@ bool Layer::IsDraggable() const {
   return draggable_;
 }
 
-// #@@range_begin(layer_move)
 Layer& Layer::Move(Vector2D<int> pos) {
   pos_ = pos;
   return *this;
@@ -48,31 +49,22 @@ Layer& Layer::MoveRelative(Vector2D<int> pos_diff) {
   pos_ += pos_diff;
   return *this;
 }
-// #@@range_end(layer_move)
 
-// #@@range_begin(layer_drawto)
 void Layer::DrawTo(FrameBuffer& screen, const Rectangle<int>& area) const {
   if (window_) {
     window_->DrawTo(screen, pos_, area);
   }
 }
-// #@@range_end(layer_drawto)
 
-
-// #@@range_begin(layermgr_setwriter)
 void LayerManager::SetWriter(FrameBuffer* screen) {
   screen_ = screen;
 }
-// #@@range_end(layermgr_setwriter)
 
-// #@@range_begin(layermgr_newlayer)
 Layer& LayerManager::NewLayer() {
   ++latest_id_;
   return *layers_.emplace_back(new Layer{latest_id_});
 }
-// #@@range_end(layermgr_newlayer)
 
-// #@@range_begin(layermgr_draw)
 void LayerManager::Draw(const Rectangle<int>& area) const {
   for (auto layer : layer_stack_) {
     layer->DrawTo(*screen_, area);
@@ -94,9 +86,6 @@ void LayerManager::Draw(unsigned int id) const {
   }
 }
 
-// #@@range_end(layermgr_draw)
-
-// #@@range_begin(layermgr_move)
 void LayerManager::Move(unsigned int id, Vector2D<int> new_pos) {
   auto layer = FindLayer(id);
   const auto window_size = layer->GetWindow()->Size();
@@ -114,9 +103,7 @@ void LayerManager::MoveRelative(unsigned int id, Vector2D<int> pos_diff) {
   Draw({old_pos, window_size});
   Draw(id);
 }
-// #@@range_end(layermgr_move)
 
-// #@@range_begin(layermgr_updown)
 void LayerManager::UpDown(unsigned int id, int new_height) {
   if (new_height < 0) {
     Hide(id);
@@ -141,9 +128,7 @@ void LayerManager::UpDown(unsigned int id, int new_height) {
   layer_stack_.erase(old_pos);
   layer_stack_.insert(new_pos, layer);
 }
-// #@@range_end(layermgr_updown)
 
-// #@@range_begin(layermgr_hide)
 void LayerManager::Hide(unsigned int id) {
   auto layer = FindLayer(id);
   auto pos = std::find(layer_stack_.begin(), layer_stack_.end(), layer);
@@ -151,7 +136,6 @@ void LayerManager::Hide(unsigned int id) {
     layer_stack_.erase(pos);
   }
 }
-// #@@range_end(layermgr_hide)
 
 Layer* LayerManager::FindLayerByPosition(Vector2D<int> pos, unsigned int exclude_id) const {
   auto pred = [pos, exclude_id](Layer* layer) {
@@ -175,8 +159,6 @@ Layer* LayerManager::FindLayerByPosition(Vector2D<int> pos, unsigned int exclude
   return *it;
 }
 
-
-// #@@range_begin(layermgr_findlayer)
 Layer* LayerManager::FindLayer(unsigned int id) {
   auto pred = [id](const std::unique_ptr<Layer>& elem) {
     return elem->ID() == id;
@@ -187,6 +169,37 @@ Layer* LayerManager::FindLayer(unsigned int id) {
   }
   return it->get();
 }
-// #@@range_end(layermgr_findlayer)
 
+namespace {
+  FrameBuffer* screen;
+}
 LayerManager* layer_manager;
+
+void InitializeLayer() {
+  const auto screen_size = ScreenSize();
+  auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, screen_config.pixel_format);
+  auto bgwriter = bgwindow->Writer();
+  DrawDesktop(*bgwriter);
+  auto console_window = std::make_shared<Window>(
+      Console::kColumns * 8, Console::kRows * 16, screen_config.pixel_format);
+  console->SetWindow(console_window);
+
+  if (auto err = screen->Initialize(screen_config)) {
+    Log(kError, "failed to initialize frame buffer: %s at %s:%d\n",
+    err.Name(), err.File(), err.Line());
+  }
+
+  layer_manager = new LayerManager;
+  layer_manager->SetWriter(screen);
+
+  auto bglayer_id = layer_manager->NewLayer()
+    .SetWindow(bgwindow)
+    .Move({0, 0})
+    .ID();
+  console->SetLayerID(layer_manager->NewLayer()
+    .SetWindow(console_window)
+    .Move({0, 0})
+    .ID());
+  layer_manager->UpDown(bglayer_id, 0);
+  layer_manager->UpDown(console->LayerID(), 1);
+}
