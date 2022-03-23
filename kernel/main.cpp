@@ -128,28 +128,13 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     Log(kError, "failed to allocate pages: %s at%s:%d\n", err.Name(), err.File(), err.Line());
     exit(1);
   }
-
-
-  // [6.17] List PCI Devices
-  auto err = pci::ScanAllBus();
-  Log(kDebug, "ScanAllBus: %s\n", err.Name());
-
-  for (int i = 0; i < pci::num_device; ++i) {
-    const auto& dev = pci::devices[i];
-    auto vendor_id = pci::ReadVendorId(dev);
-    auto class_code = pci::ReadClassCode(dev.bus, dev.device, dev.function);
-    Log(kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
-        dev.bus, dev.device, dev.function,
-        vendor_id, class_code, dev.header_type);
-  }
-
   //InitializeSegmentation();
   //InitializePaging();
   //InitializeMemoryManager(memory_map);
   ::main_queue = new std::deque<Message>(32);
 
   InitializeInterrupt(main_queue);
-  //InitializePCI();
+  InitializePCI();
   usb::xhci::Initialize();
   InitializeLayer();
   InitializeMainWindow();
