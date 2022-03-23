@@ -27,6 +27,7 @@
 #include "window.hpp"
 #include "layer.hpp"
 #include "timer.hpp"
+#include "message.hpp"
 
 
 
@@ -100,48 +101,14 @@ void InitializeMainWindow() {
     .ID();
 
   layer_manager->UpDown(main_window_layer_id, std::numeric_limits<int>::max());
-}
 
-// [6.22] Change control mode of USB port
-void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
-  bool intel_ehc_exist = false;
-  for (int i = 0; i < pci::num_device; ++i) {
-    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x20u) /* EHCI */ &&
-        0x8086 == pci::ReadVendorId(pci::devices[i])) {
-      intel_ehc_exist = true;
-      break;
-    }
-  }
-  if (!intel_ehc_exist) {
-    return;
-  }
-
-  uint32_t superspeed_ports = pci::ReadConfReg(xhc_dev, 0xdc); // USB3PRM
-  pci::WriteConfReg(xhc_dev, 0xd8, superspeed_ports); // USB3_PSSEN
-  uint32_t ehci2xhci_ports = pci::ReadConfReg(xhc_dev, 0xd4); // XUSB2PRM
-  pci::WriteConfReg(xhc_dev, 0xd0, ehci2xhci_ports); // XUSB2PR
-  Log(kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
-      superspeed_ports, ehci2xhci_ports);
 }
 // Mouse Lib End
 
 // [7.1] Definition of Interrupt Handler for xHCI
 usb::xhci::Controller* xhc;
 
-struct Message {
-  enum Type {
-    kInterruptXHCI,
-  } type;
-};
-
-ArrayQueue<Message>* main_queue;
-
-// Compiler inserts Context Save and Return by attribute
-__attribute__((interrupt))
-void IntHandlerXHCI(InterruptFrame* frame) {
-  main_queue->Push(Message{Message::kInterruptXHCI});
-  NotifyEndOfInterrupt();
-}
+std::deque<Message>* main_queue;
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -203,9 +170,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     exit(1);
   }
 
-  std::array<Message, 32> main_queue_data;
-  ArrayQueue<Message> main_queue{main_queue_data};
-  ::main_queue = &main_queue;
 
   // [6.17] List PCI Devices
   auto err = pci::ScanAllBus();
@@ -220,75 +184,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         vendor_id, class_code, dev.header_type);
   }
 
-  // [6.18] Search Intel List
-  pci::Device* xhc_dev = nullptr;
-  for (int i = 0; i < pci::num_device; ++i) {
-    if (pci::devices[i].class_code.Match(0x0cu, 0x03u, 0x30u)) {
-      // xHC
-      xhc_dev = &pci::devices[i];
-      if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
-        break;
-      }
-    }
-  }
-
-  if (xhc_dev) {
-    Log(kInfo, "xHC has been found: %d.%d.%d\n",
-           xhc_dev->bus, xhc_dev->device, xhc_dev->function);
-  }
-
-  // [7.6] Register IDT to CPU by setting interrupt vector 0x40
-  SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
-              reinterpret_cast<uint64_t>(IntHandlerXHCI), kernel_cs);
-  LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
-
-  // [7.8] Validate MSI Interrupt
-  // Make interrupts in InterruptVector::kXHCI to CPU core id
-  // BSP (Bootstrap Processor)
-  const uint8_t bsp_local_apic_id =
-    *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
-  pci::ConfigureMSIFixedDestination(
-      *xhc_dev, bsp_local_apic_id,
-      pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
-      InterruptVector::kXHCI, 0);
-
-  // [6.19] Read BAR0 Register
-  const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
-  Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
-  const uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
-  Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
-
-  // [6.21] Initialize xHC and run
-  usb::xhci::Controller xhc{xhc_mmio_base};
-
-  if (0x8086 == pci::ReadVendorId(*xhc_dev)) {
-    SwitchEhci2Xhci(*xhc_dev);
-  }
-  {
-    auto err = xhc.Initialize();
-    Log(kDebug, "xhc.Initialize: %s\n", err.Name());
-  }
-
-  Log(kInfo, "xHC starting\n");
-  xhc.Run();
-
-  ::xhc = &xhc;
-
   // [6.23] Setting for connected port by searching USB port
   usb::HIDMouseDriver::default_observer = MouseObserver;
-
-  for (int i = 1; i <= xhc.MaxPorts(); ++i) {
-    auto port = xhc.PortAt(i);
-    Log(kDebug, "Port %d: IsConnected=%d\n", i, port.IsConnected());
-
-    if (port.IsConnected()) {
-      if (auto err = ConfigurePort(xhc, port)) {
-        Log(kError, "failed to configure port: %s at %s:%d\n",
-            err.Name(), err.File(), err.Line());
-        continue;
-      }
-    }
-  }
 
   // [9.20] Generate 2 layers
   screen_size.x = screen_config.horizontal_resolution;
@@ -299,9 +196,14 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   mouse_window->SetTransparentColor(kMouseTransparentColor);
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
   mouse_position = {200, 200};
+  //InitializeSegmentation();
+  //InitializePaging();
+  //InitializeMemoryManager(memory_map);
+  ::main_queue = new std::deque<Message>(32);
 
+  InitializeInterrupt(main_queue);
   //InitializePCI();
-  //usb::xhci::Initialize();
+  usb::xhci::Initialize();
   InitializeLayer();
   InitializeMainWindow();
   //InitializeMouse();
@@ -329,25 +231,20 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     // cli: Clear Interrupt flag
     // Interrupt Flag of the CPU is set 0
     __asm__("cli");
-    if (main_queue.Count() == 0) {
+    if (main_queue->size() == 0) {
       // sti: Set Interrupt flag
       // Interrupt Flag of the CPU is set 1
       // hlt : Stop CPU since a new interrupt comes
       __asm__("sti");
       continue;
     }
-    Message msg = main_queue.Front();
-    main_queue.Pop();
+    Message msg = main_queue->front();
+    main_queue->pop_front();
     __asm__("sti");
 
     switch (msg.type) {
     case Message::kInterruptXHCI:
-      while (xhc.PrimaryEventRing()->HasFront()) {
-        if (auto err = ProcessEvent(xhc)) {
-          Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-              err.Name(), err.File(), err.Line());
-        }
-      }
+      usb::xhci::ProcessEvents();
       break;
     default:
       Log(kError, "Unknown message type: %d\n", msg.type);

@@ -2,7 +2,9 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include "x86_descriptor.hpp"
+#include "message.hpp"
 
 // [7.4] UNION for attributes of interrupt descripter
 union InterruptDescriptorAttribute {
@@ -65,3 +67,4 @@ struct InterruptFrame {
 };
 
 void NotifyEndOfInterrupt();
+void InitializeInterrupt(std::deque<Message>* msg_queue);
