@@ -80,11 +80,22 @@ void Console::Newline() {
   }
 }
 
-// #@@range_begin(console_refresh)
+
 void Console::Refresh() {
   FillRectangle(*writer_, {0, 0}, {8 * kColumns, 16 * kRows}, bg_color_);
   for (int row = 0; row < kRows; ++row) {
     WriteString(*writer_, Vector2D<int>{0, 16 * row}, buffer_[row], fg_color_);
   }
 }
-// #@@range_end(console_refresh)
+
+Console* console;
+namespace {
+  char console_buf[sizeof(Console)];
+}
+
+void InitializeConsole() {
+  console = new(console_buf) Console {
+    kDesktopFGColor, kDesktopBGColor
+  };
+  console->SetWriter(screen_writer);
+}

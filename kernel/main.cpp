@@ -28,13 +28,6 @@
 #include "layer.hpp"
 #include "timer.hpp"
 
-// (:3 グローバル変数 begin
-
-char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
-PixelWriter* pixel_writer;
-char console_buf[sizeof(Console)];
-Console* console;
-// (:3 グローバル変数 end
 
 
 int printk(const char* format, ...) {
@@ -139,28 +132,9 @@ void IntHandlerXHCI(InterruptFrame* frame) {
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref) {
-  FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
   MemoryMap memory_map{memory_map_ref};
-
-  switch (frame_buffer_config.pixel_format) {
-  case kPixelRGBResv8BitPerColor:
-    // このnewは配置newというもの
-    // OSがメモリ管理できない状況なので、newは使えないが、メモリ領域上にインスタンスを作成して、コンストラクタを呼び出す。
-    pixel_writer = new(pixel_writer_buf)
-      RGBResv8BitPerColorPixelWriter{frame_buffer_config};
-    break;
-  case kPixelBGRResv8BitPerColor:
-    pixel_writer = new(pixel_writer_buf)
-      BGRResv8BitPerColorPixelWriter{frame_buffer_config};
-    break;
-  }
-
-
-  DrawDesktop(*pixel_writer);
-  console = new(console_buf) Console{
-    kDesktopFGColor, kDesktopBGColor
-  };
-  console->SetWriter(pixel_writer);
+  InitializeGraphics(frame_buffer_config_ref);
+  InitializeConsole();
   printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
 
@@ -298,34 +272,34 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   }
 
   // [9.20] Generate 2 layers
-  screen_size.x = frame_buffer_config.horizontal_resolution;
-  screen_size.y = frame_buffer_config.vertical_resolution;
+  screen_size.x = screen_config.horizontal_resolution;
+  screen_size.y = screen_config.vertical_resolution;
 
-  auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, frame_buffer_config.pixel_format);
+  auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, screen_config.pixel_format);
   
   auto bgwriter = bgwindow->Writer();
 
   DrawDesktop(*bgwriter);
 
   auto mouse_window = std::make_shared<Window>(
-      kMouseCursorWidth, kMouseCursorHeight, frame_buffer_config.pixel_format);
+      kMouseCursorWidth, kMouseCursorHeight, screen_config.pixel_format);
   mouse_window->SetTransparentColor(kMouseTransparentColor);
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
   mouse_position = {200, 200};
 
   // [10.4]
   auto main_window = std::make_shared<Window>(
-      250, 100, frame_buffer_config.pixel_format);
+      250, 100, screen_config.pixel_format);
   DrawWindow(*main_window->Writer(), "Application");
   WriteString(*main_window->Writer(), {24, 28}, "Ashitamo I-hini naruyone?", kDesktopFGColor);
   WriteString(*main_window->Writer(), {24, 44}, "Uhyo~(:3", kDesktopFGColor);
 
   auto console_window = std::make_shared<Window>(
-      Console::kColumns * 8, Console::kRows * 16, frame_buffer_config.pixel_format);
+      Console::kColumns * 8, Console::kRows * 16, screen_config.pixel_format);
   console->SetWindow(console_window);
 
   FrameBuffer screen;
-  if (auto err = screen.Initialize(frame_buffer_config)) {
+  if (auto err = screen.Initialize(screen_config)) {
     Log(kError, "failed to initialize frame buffer: %s at %s:%d\n",
     err.Name(), err.File(), err.Line());
   }
