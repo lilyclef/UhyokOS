@@ -24,6 +24,7 @@
 #include "window.hpp"
 #include "layer.hpp"
 #include "message.hpp"
+#include "timer.hpp"
 
 
 
@@ -86,7 +87,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeMainWindow();
   InitializeMouse();
   layer_manager->Draw({{0, 0}, ScreenSize()});
-
+  InitializeLAPICTimer();
   // [10.9]
   char counter_str[128];
   unsigned int counter = 0;
@@ -116,6 +117,9 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     switch (msg.type) {
     case Message::kInterruptXHCI:
       usb::xhci::ProcessEvents();
+      break;
+    case Message::kInterruptLAPICTimer:
+      printk("Timer interrupt\n");
       break;
     default:
       Log(kError, "Unknown message type: %d\n", msg.type);
