@@ -13,14 +13,9 @@
 #include "console.hpp"
 #include "pci.hpp"
 #include "logger.hpp"
-#include "usb/memory.hpp"
-#include "usb/device.hpp"
-#include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
-#include "usb/xhci/trb.hpp"
 #include "interrupt.hpp"
 #include "asmfunc.h"
-#include "queue.hpp"
 #include "segment.hpp"
 #include "paging.hpp"
 #include "memory_manager.hpp"
@@ -43,9 +38,6 @@ int printk(const char* format, ...) {
   console->PutString(s);
   return result;
 }
-
-char memory_manager_buf[sizeof(BitmapMemoryManager)];
-BitmapMemoryManager* memory_manager;
 
 std::shared_ptr<Window> main_window;
 unsigned int main_window_layer_id;
@@ -82,56 +74,16 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeConsole();
   printk("Welcome to Uhyo world!\n");
   SetLogLevel(kWarn);
-
-  ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
-
-  const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
-   uintptr_t available_end = 0;
-  printk("Welcome to Uhyo world!3\n");
-  // メモリマップはメモリディスクリプタの配列->順番に表示
-  for (uintptr_t iter = memory_map_base;
-       iter < memory_map_base + memory_map.map_size;
-       iter += memory_map.descriptor_size) {
-    auto desc = reinterpret_cast<const MemoryDescriptor*>(iter);
-    if (available_end < desc->physical_start) {
-      memory_manager->MarkAllocated(
-          FrameID{available_end / kBytesPerFrame},
-          (desc->physical_start - available_end) / kBytesPerFrame);
-    }
-
-    const auto physical_end =
-      desc->physical_start + desc->number_of_pages * kUEFIPageSize;
-    if (IsAvailable(static_cast<MemoryType>(desc->type))) {
-      available_end = physical_end;
-    } else {
-      printk("fst %ld", desc->physical_start / kBytesPerFrame);
-      printk("snd %ld", desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
-      memory_manager->
-      MarkAllocated(
-          FrameID{desc->physical_start / kBytesPerFrame},
-          desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
-    }
-  }
-
-  // [9.2]
-  memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
-
-  if (auto err = InitializeHeap(*memory_manager)) {
-    Log(kError, "failed to allocate pages: %s at%s:%d\n", err.Name(), err.File(), err.Line());
-    exit(1);
-  }
   InitializeSegmentation();
   InitializePaging();
-  //InitializeMemoryManager(memory_map);
+  InitializeMemoryManager(memory_map);
   ::main_queue = new std::deque<Message>(32);
-
   InitializeInterrupt(main_queue);
   InitializePCI();
   usb::xhci::Initialize();
   InitializeLayer();
   InitializeMainWindow();
   InitializeMouse();
-
   layer_manager->Draw({{0, 0}, ScreenSize()});
 
   // [10.9]

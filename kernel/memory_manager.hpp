@@ -10,8 +10,8 @@
 #include <limits>
 
 #include "error.hpp"
+#include "memory_map.hpp"
 
-// #@@range_begin(frame_id)
 namespace {
   constexpr unsigned long long operator""_KiB(unsigned long long kib) {
     return kib * 1024;
@@ -89,5 +89,4 @@ class BitmapMemoryManager {
   void SetBit(FrameID frame, bool allocated);
 };
 
-Error InitializeHeap(BitmapMemoryManager& memory_manager);
-// #@@range_end(bitmap_memory_manager)
+void InitializeMemoryManager(const MemoryMap& memory_map);
