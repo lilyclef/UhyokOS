@@ -4,6 +4,8 @@
 
 #include <numeric>
 #include <vector>
+#include <deque>
+#include <limits>
 
 #include "frame_buffer_config.hpp"
 #include "memory_map.hpp"
@@ -21,7 +23,6 @@
 #include "memory_manager.hpp"
 #include "window.hpp"
 #include "layer.hpp"
-#include "timer.hpp"
 #include "message.hpp"
 
 
