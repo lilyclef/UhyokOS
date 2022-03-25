@@ -90,12 +90,13 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeLAPICTimer();
   // [10.9]
   char counter_str[128];
-  unsigned int counter = 0;
 
   while(true) {
-    // [10.10]
-    ++counter;
-    sprintf(counter_str, "%010u", counter);
+    __asm__("cli");
+    const auto tick = timer_manager->CurrentTick();
+    __asm__("sti");
+
+    sprintf(counter_str, "%010lu", tick);
     FillRectangle(*main_window->Writer(), {24, 66}, {8 * 10, 16}, {255, 251, 233});
     WriteString(*main_window->Writer(), {24, 66}, counter_str, kDesktopFGColor);
     layer_manager->Draw(main_window_layer_id);
@@ -107,7 +108,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       // sti: Set Interrupt flag
       // Interrupt Flag of the CPU is set 1
       // hlt : Stop CPU since a new interrupt comes
-      __asm__("sti");
+      __asm__("sti\n\thlt");
       continue;
     }
     Message msg = main_queue->front();
