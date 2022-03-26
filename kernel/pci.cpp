@@ -7,6 +7,7 @@
 #include "pci.hpp"
 
 #include "asmfunc.h"
+#include "logger.hpp"
 
 namespace {
   using namespace pci;
@@ -315,5 +316,20 @@ namespace pci {
       msg_data |= 0xc000;
     }
     return ConfigureMSI(dev, msg_addr, msg_data, num_vector_exponent);
+  }
+}
+
+void InitializePCI() {
+  // [6.17] List PCI Devices
+  auto err = pci::ScanAllBus();
+  Log(kDebug, "ScanAllBus: %s\n", err.Name());
+
+  for (int i = 0; i < pci::num_device; ++i) {
+    const auto& dev = pci::devices[i];
+    auto vendor_id = pci::ReadVendorId(dev);
+    auto class_code = pci::ReadClassCode(dev.bus, dev.device, dev.function);
+    Log(kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
+        dev.bus, dev.device, dev.function,
+        vendor_id, class_code, dev.header_type);
   }
 }

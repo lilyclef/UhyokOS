@@ -132,6 +132,11 @@ Program Headers:
 - hlt: CPU is set as save power mode since the next intterrupt
 
 ## 2022/03/14
-- Finish $8 memory_map
+- Finish #8 memory_map
 - Loader needs symbol link for memory_map.h because Main.c needs.
 - Check Loader side and build again when change Loader codes
+
+## 2022/03/24
+- Finish #11 timer
+- ACPI is Advanced Configuration and Power Interface
+- Frequency of ACPI is able to be count, so we use it as a timer.

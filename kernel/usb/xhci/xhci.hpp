@@ -64,4 +64,8 @@ namespace usb::xhci {
    * @return イベントを正常に処理できたら Error::kSuccess
    */
   Error ProcessEvent(Controller& xhc);
+  // [7.1] Definition of Interrupt Handler for xHCI
+  extern Controller* controller;
+  void Initialize();
+  void ProcessEvents();
 }
