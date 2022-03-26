@@ -3,6 +3,14 @@
 struct Message {
   enum Type {
     kInterruptXHCI,
-    kInterruptLAPICTimer,
+    kTimerTimeout,
   } type;
+
+  // To use several kinds of data as Messae, use union
+  union {
+    struct {
+      unsigned long timeout;
+      int value;
+    } timer;
+  } arg;
 };
