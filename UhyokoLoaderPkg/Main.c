@@ -377,9 +377,20 @@ EFI_STATUS EFIAPI UefiMain(
       Halt();
   }
 
-  typedef void __attribute__((sysv_abi)) EntryPointType(const struct FrameBufferConfig*, const struct MemoryMap*);
+  VOID* acpi_table = NULL;
+  for (UINTN i = 0; i < system_table->NumberOfTableEntries; ++i) {
+    if (CompareGuid(&gEfiAcpiTableGuid,
+                    &system_table->ConfigurationTable[i].VendorGuid)) {
+      acpi_table = system_table->ConfigurationTable[i].VendorTable;
+      break;
+    }
+  }
+
+  typedef void EntryPointType(const struct FrameBufferConfig*,
+                              const struct MemoryMap*,
+                              const VOID*);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
-  entry_point(&config, &memmap);
+  entry_point(&config, &memmap, acpi_table);
 
   Print(L"Kernel is called (:3 \n");
   // (:3 カーネル呼び出し end
