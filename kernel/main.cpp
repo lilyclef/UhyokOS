@@ -27,6 +27,7 @@
 #include "timer.hpp"
 #include "acpi.hpp"
 #include "keyboard.hpp"
+#include "task.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -110,6 +111,41 @@ void InputTextWindow(char c) {
   layer_manager->Draw(text_window_layer_id);
 }
 
+std::shared_ptr<Window> task_b_window;
+unsigned int task_b_window_layer_id;
+
+void InitializeTaskBWindow() {
+  task_b_window = std::make_shared<Window>(160, 52, screen_config.pixel_format);
+  DrawWindow(*task_b_window->Writer(), "Task B Window");
+
+  task_b_window_layer_id = layer_manager->NewLayer()
+    .SetWindow(task_b_window)
+    .SetDraggable(true)
+    .Move({100, 100})
+    .ID();
+
+  layer_manager->UpDown(task_b_window_layer_id, std::numeric_limits<int>::max());
+}
+
+
+void TaskB(uint64_t task_id, int64_t data) {
+  printk("TaskB: task_id=%lu, data=%lu\n", task_id, data);
+  char str[128];
+  int count = 0;
+  while (true) {
+    ++count;
+    sprintf(str, "%010d", count);
+    FillRectangle(*task_b_window->Writer(), {24, 28}, {8 * 10, 16}, ToColor(0xFFFBE9));
+    WriteString(*task_b_window->Writer(), {24, 28}, str, kDesktopFGColor);
+    layer_manager->Draw(task_b_window_layer_id);
+  }
+}
+
+void TaskIdle(uint64_t task_id, int64_t data) {
+  printk("TaskIdle: task_id=%lu, data=%lu\n", task_id, data);
+  while (true) __asm__("hlt");
+}
+
 std::deque<Message>* main_queue;
 
 /*
@@ -138,6 +174,7 @@ extern "C" void KernelMainNewStack(
   InitializeLayer();
   InitializeMainWindow();
   InitializeTextWindow();
+  InitializeTaskBWindow();
   InitializeMouse();
   layer_manager->Draw({{0, 0}, ScreenSize()});
   acpi::Initialize(acpi_table);
@@ -151,6 +188,13 @@ extern "C" void KernelMainNewStack(
   timer_manager->AddTimer(Timer{kTimer05Sec, kTextboxCursorTimer});
   __asm__("sti");
   bool textbox_cursor_visible = false;
+
+  InitializeTask();
+  task_manager->NewTask().InitContext(TaskB, 45);
+  task_manager->NewTask().InitContext(TaskIdle, 0xdeadbeef);
+  task_manager->NewTask().InitContext(TaskIdle, 0xcafe2aaa);
+  task_manager->NewTask().InitContext(TaskIdle, 0xe8fe8fe8);
+
 
   char counter_str[128];
 
