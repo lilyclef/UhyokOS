@@ -28,6 +28,7 @@ class Error {
     kNoWaiter,
     kNoPCIMSI,    // [7] PCI MSI Interrupt
     kUnknownPixelFormat, // [9] Overlap
+    kNoSuchTask, // [14] Multitask2 sleep
     kLastOfCode,  // この列挙子は常に最後に配置する
   };
 
@@ -55,6 +56,7 @@ class Error {
     "kNoWaiter",
     "kNoPCIMSI",
     "kUnknownPixelFormat",
+    "kNoSuchTask",
   };
   static_assert(Error::Code::kLastOfCode == code_names_.size());
 
