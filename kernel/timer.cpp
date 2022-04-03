@@ -11,8 +11,8 @@ namespace {
   volatile uint32_t& divide_config = *reinterpret_cast<uint32_t*>(0xfee003e0);
 }
 
-void InitializeLAPICTimer(std::deque<Message>& msg_queue) {
-  timer_manager = new TimerManager{msg_queue};
+void InitializeLAPICTimer() {
+  timer_manager = new TimerManager;
   divide_config = 0b1011; // divide 1:1
   lvt_timer = 0b001 << 16; // masked, one-shot
 
@@ -43,8 +43,7 @@ void StopLAPICTimer() {
 Timer::Timer(unsigned long timeout, int value) : timeout_{timeout}, value_{value} {
 }
 
-TimerManager::TimerManager(std::deque<Message>& msg_queue)
-    : msg_queue_{msg_queue} {
+TimerManager::TimerManager() {
   timers_.push(Timer{std::numeric_limits<unsigned long>::max(), -1});
 }
 
@@ -61,6 +60,7 @@ bool TimerManager::Tick() {
       break;
     }
 
+    // Send a message using SendMessage()
     if (t.Value() == kTaskTimerValue) {
       task_timer_timeout = true;
       timers_.pop();
@@ -72,7 +72,7 @@ bool TimerManager::Tick() {
     Message m{Message::kTimerTimeout};
     m.arg.timer.timeout = t.Timeout();
     m.arg.timer.value = t.Value();
-    msg_queue_.push_back(m);
+    task_manager->SendMessage(1, m);
 
     timers_.pop();
   }

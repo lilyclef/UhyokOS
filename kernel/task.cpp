@@ -3,7 +3,21 @@
 #include "segment.hpp"
 #include "timer.hpp"
 
-Task::Task(uint64_t id) : id_{id} {
+namespace {
+  // [14.25]
+  template <class T, class U>
+  void Erase(T& c, const U& value) {
+    // remove collects the target items, but not delete
+    auto it = std::remove(c.begin(), c.end(), value);
+    c.erase(it, c.end());
+  }
+}
+
+void TaskIdle(uint64_t task_id, int64_t data) {
+  while (true) __asm__("hlt");
+}
+
+Task::Task(uint64_t id) : id_{id}, msgs_{} {
 }
 
 Task& Task::InitContext(TaskFunc* f, int64_t data) {
@@ -32,8 +46,50 @@ TaskContext& Task::Context() {
   return context_;
 }
 
+uint64_t Task::ID() const {
+  return id_;
+}
+
+Task& Task::Sleep() {
+  task_manager->Sleep(this);
+  return *this;
+}
+
+Task& Task::Wakeup() {
+  task_manager->Wakeup(this);
+  return *this;
+}
+
+// Add a message to message queue and wake up
+void Task::SendMessage(const Message& msg) {
+  msgs_.push_back(msg);
+  Wakeup();
+}
+
+// Retrieve a message from message queue
+std::optional<Message> Task::ReceiveMessage() {
+  if (msgs_.empty()) {
+    return std::nullopt;
+  }
+
+  auto m = msgs_.front();
+  msgs_.pop_front();
+  return m;
+}
+
 TaskManager::TaskManager() {
-  NewTask();
+  // put initial task because switchtask is called
+  Task& task = NewTask()
+    .SetLevel(current_level_)
+    .SetRunning(true);
+  running_[current_level_].push_back(&task);
+
+  // [14.29] Register an idle task
+  Task& idle = NewTask()
+    .InitContext(TaskIdle, 0)
+    .SetLevel(0)
+    .SetRunning(true);
+  running_[0].push_back(&idle);
 }
 
 Task& TaskManager::NewTask() {
@@ -41,18 +97,139 @@ Task& TaskManager::NewTask() {
   return *tasks_.emplace_back(new Task{latest_id_});
 }
 
-void TaskManager::SwitchTask() {
-  size_t next_task_index = current_task_index_ + 1;
-  // turn to head
-  if (next_task_index >= tasks_.size()) {
-    next_task_index = 0;
+void TaskManager::SwitchTask(bool current_sleep) {
+  auto& level_queue = running_[current_level_];
+  Task* current_task = level_queue.front();
+  level_queue.pop_front();
+
+  if (!current_sleep) {
+    level_queue.push_back(current_task);
+  }
+  if (level_queue.empty()) {
+    level_changed_ = true;
   }
 
-  Task& current_task = *tasks_[current_task_index_];
-  Task& next_task = *tasks_[next_task_index];
-  current_task_index_ = next_task_index;
+  if (level_changed_) {
+    level_changed_ = false;
+    for (int lv = kMaxLevel; lv >= 0; --lv) {
+      if (!running_[lv].empty()) {
+        current_level_ = lv;
+        break;
+      }
+    }
+  }
 
-  SwitchContext(&next_task.Context(), &current_task.Context());
+  Task* next_task = running_[current_level_].front();
+
+  SwitchContext(&next_task->Context(), &current_task->Context());
+}
+
+// @brief Remove the task from the run queue
+void TaskManager::Sleep(Task* task) {
+  if (!task->Running()) {
+    return;
+  }
+  task->SetRunning(false);
+
+  if (task == running_[current_level_].front()) {
+    SwitchTask(true);
+    return;
+  }
+
+  Erase(running_[task->Level()], task);
+}
+
+// @brief Remove the task by id from the run queue
+Error TaskManager::Sleep(uint64_t id) {
+  auto it = std::find_if(tasks_.begin(), tasks_.end(),
+                         [id](const auto& t){ return t->ID() == id; });
+  if (it == tasks_.end()) {
+    return MAKE_ERROR(Error::kNoSuchTask);
+  }
+
+  Sleep(it->get());
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+/** @brief
+ * 1. Wake up a task sleeping : add the task to the run queue
+ * 2. Change level of the running task
+**/
+void TaskManager::Wakeup(Task* task, int level) {
+  if (task->Running()) {
+    ChangeLevelRunning(task, level);
+    return;
+  }
+
+  if (level < 0) {
+    level = task->Level();
+  }
+
+  task->SetLevel(level);
+  task->SetRunning(true);
+
+  running_[level].push_back(task);
+  if (level > current_level_) {
+    level_changed_ = true;
+  }
+  return;
+}
+
+// @brief Add the task by id to the run queue
+Error TaskManager::Wakeup(uint64_t id, int level) {
+  auto it = std::find_if(tasks_.begin(), tasks_.end(),
+                         [id](const auto& t){ return t->ID() == id; });
+  if (it == tasks_.end()) {
+    return MAKE_ERROR(Error::kNoSuchTask);
+  }
+
+  Wakeup(it->get(), level);
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+// SendMessage() send a message to the indicate task
+Error TaskManager::SendMessage(uint64_t id, const Message& msg) {
+  auto it = std::find_if(tasks_.begin(), tasks_.end(),
+                         [id](const auto& t){ return t->ID() == id; });
+  if (it == tasks_.end()) {
+    return MAKE_ERROR(Error::kNoSuchTask);
+  }
+
+  (*it)->SendMessage(msg);
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+// Return task current running
+Task& TaskManager::CurrentTask() {
+  return *running_[current_level_].front();
+}
+
+void TaskManager::ChangeLevelRunning(Task* task, int level) {
+  if (level < 0 || level == task->Level()) {
+    return;
+  }
+  if (task != running_[current_level_].front()) {
+    // change level of other task
+    Erase(running_[task->Level()], task);
+    running_[level].push_back(task);
+    task->SetLevel(level);
+    if (level > current_level_) {
+      level_changed_ = true;
+    }
+    return;
+  }
+
+  // When task == running_[current_level_].front()
+  // change level my self
+  running_[current_level_].pop_front();
+  running_[level].push_front(task);
+  task->SetLevel(level);
+  if (level >= current_level_) {
+    current_level_ = level;
+  } else {
+    current_level_ = level;
+    level_changed_ = true;
+  }
 }
 
 TaskManager* task_manager;
