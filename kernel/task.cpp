@@ -13,6 +13,10 @@ namespace {
   }
 }
 
+void TaskIdle(uint64_t task_id, int64_t data) {
+  while (true) __asm__("hlt");
+}
+
 Task::Task(uint64_t id) : id_{id}, msgs_{} {
 }
 
@@ -79,6 +83,13 @@ TaskManager::TaskManager() {
     .SetLevel(current_level_)
     .SetRunning(true);
   running_[current_level_].push_back(&task);
+
+  // [14.29] Register an idle task
+  Task& idle = NewTask()
+    .InitContext(TaskIdle, 0)
+    .SetLevel(0)
+    .SetRunning(true);
+  running_[0].push_back(&idle);
 }
 
 Task& TaskManager::NewTask() {

@@ -141,10 +141,6 @@ void TaskB(uint64_t task_id, int64_t data) {
   }
 }
 
-void TaskIdle(uint64_t task_id, int64_t data) {
-  printk("TaskIdle: task_id=%lu, data=%lu\n", task_id, data);
-  while (true) __asm__("hlt");
-}
 
 /*
   KernelMain()がブートローダから呼び出される
@@ -187,10 +183,6 @@ extern "C" void KernelMainNewStack(
     .InitContext(TaskB, 45)
     .Wakeup()
     .ID();
-
-  task_manager->NewTask().InitContext(TaskIdle, 0xdeadbeef).Wakeup();
-  task_manager->NewTask().InitContext(TaskIdle, 0xcafe2aaa).Wakeup();
-  task_manager->NewTask().InitContext(TaskIdle, 0xe8fe8fe8).Wakeup();
 
   usb::xhci::Initialize();
   InitializeKeyboard();
