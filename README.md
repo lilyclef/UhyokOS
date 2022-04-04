@@ -145,3 +145,9 @@ Program Headers:
 - #13 Context Switch
 - PML4 Table is described in #8
 - To prevent some program forgets switch, make it automation
+
+## 2022/04/04
+- Finish #16 Commands
+- I found a bug that initialize active window
+- The relationships of layer ids is sus
+- There some diffs from originas : framebuffer, layer, mouse, window cpp/hpp
