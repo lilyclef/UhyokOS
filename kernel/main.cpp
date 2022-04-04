@@ -189,7 +189,7 @@ extern "C" void KernelMainNewStack(
   InitializeTextWindow();
   InitializeTaskBWindow();
   layer_manager->Draw({{0, 0}, ScreenSize()});
-  active_layer->Activate(task_b_window_layer_id);
+  // active_layer->Activate(task_b_window_layer_id); [BUG]
   acpi::Initialize(acpi_table);
   InitializeLAPICTimer();
 
