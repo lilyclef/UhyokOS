@@ -99,6 +99,9 @@ void Terminal::ExecuteLine() {
       Print(first_arg);
     }
     Print("\n");
+  } else if (strcmp(command, "clear") == 0) {
+    FillRectangle(*window_->InnerWriter(), {4, 4}, {8*kColumns, 16*kRows}, {200, 178, 255});
+    cursor_.y = 0;
   } else if (strcmp(command, "lspci") == 0) {
     char s[64];
     for (int i = 0; i < pci::num_device; ++i) {
