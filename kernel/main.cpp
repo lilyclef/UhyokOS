@@ -29,6 +29,7 @@
 #include "keyboard.hpp"
 #include "task.hpp"
 #include "terminal.hpp"
+#include "fat.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -130,6 +131,7 @@ extern "C" void KernelMainNewStack(
   InitializePaging();
   InitializeMemoryManager(memory_map);
   InitializeInterrupt();
+  fat::Initialize(volume_image);
   InitializePCI();
   InitializeLayer();
   InitializeMainWindow();
@@ -154,22 +156,6 @@ extern "C" void KernelMainNewStack(
   usb::xhci::Initialize();
   InitializeKeyboard();
   InitializeMouse();
-
-  uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
-  printk("Volume Image:\n");
-  for (int i = 0; i < 16; ++i) {
-    printk("%04x:", i * 16);
-    for (int j = 0; j < 8; ++j) {
-      printk(" %02x", *p);
-      ++p;
-    }
-    printk(" ");
-    for (int j = 0; j < 8; ++j) {
-      printk(" %02x", *p);
-      ++p;
-    }
-    printk("\n");
-  }
 
   char counter_str[128];
 

@@ -295,3 +295,5 @@ mkfs.fat 4.2 (2021-01-31)
 *
 08000000
 ```
+- [File Allocation Table Wiki](https://en.wikipedia.org/wiki/File_Allocation_Table)
+- The current ls shows the name of volume which is set in osbook/devenv/make_image.sh
