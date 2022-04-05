@@ -22,12 +22,12 @@ namespace {
     //fill_rect(pos + Vector2D<int>{size.x, 0}, {1, size.y}, border_light);
   }
 }
-
 Window::Window(int width, int height, PixelFormat shadow_format) : width_{width}, height_{height} {
   data_.resize(height);
   for (int y = 0; y < height; ++y) {
     data_[y].resize(width);
   }
+
   FrameBufferConfig config{};
   config.frame_buffer = nullptr;
   config.horizontal_resolution = width;
@@ -42,7 +42,6 @@ Window::Window(int width, int height, PixelFormat shadow_format) : width_{width}
 
 void Window::DrawTo(FrameBuffer& dst, Vector2D<int> pos, const Rectangle<int>& area) {
   if (!transparent_color_) {
-    // [10.16]
     Rectangle<int> window_area{pos, Size()};
     Rectangle<int> intersection = area & window_area;
     dst.Copy(intersection.pos, shadow_buffer_, {intersection.pos - pos, intersection.size});
@@ -51,22 +50,23 @@ void Window::DrawTo(FrameBuffer& dst, Vector2D<int> pos, const Rectangle<int>& a
 
   const auto tc = transparent_color_.value();
   auto& writer = dst.Writer();
-  for (int y = std::max(0, 0 - pos.y); y < std::min(Height(), writer.Height() - pos.y); ++y) {
-    for (int x = std::max(0, 0 - pos.x); x < std::min(Width(), writer.Width() - pos.x); ++x) {
-    const auto c = At(Vector2D<int>{x, y});
+  for (int y = std::max(0, 0 - pos.y);
+       y < std::min(Height(), writer.Height() - pos.y);
+       ++y) {
+    for (int x = std::max(0, 0 - pos.x);
+         x < std::min(Width(), writer.Width() - pos.x);
+         ++x) {
+      const auto c = At(Vector2D<int>{x, y});
       if (c != tc) {
         writer.Write(pos + Vector2D<int>{x, y}, c);
       }
     }
   }
 }
-// #@@range_end(window_drawto)
 
-// #@@range_begin(window_settc)
 void Window::SetTransparentColor(std::optional<PixelColor> c) {
   transparent_color_ = c;
 }
-// #@@range_end(window_settc)
 
 Window::WindowWriter* Window::Writer() {
   return &writer_;
@@ -93,7 +93,6 @@ Vector2D<int> Window::Size() const {
   return {width_, height_};
 }
 
-// [9.45] Shadow Buffer executes move 
 void Window::Move(Vector2D<int> dst_pos, const Rectangle<int>& src) {
   shadow_buffer_.Move(dst_pos, src);
 }
@@ -138,9 +137,7 @@ namespace {
     "@@@@@@@@@@@@@@@@",
   };
 }
-// #@@range_end(utils)
 
-// #@@range_begin(draw_window)
 void DrawWindow(PixelWriter& writer, const char* title) {
   auto fill_rect_round = [&writer](Vector2D<int> pos, Vector2D<int> size, uint32_t c) {
     FillRectangleRound(writer, pos, size, ToColor(c), 3);
@@ -161,7 +158,6 @@ void DrawWindow(PixelWriter& writer, const char* title) {
   // title bar
   fill_rect_round_upper({0, 0}, {win_w, 20}, 0xAD8B73);
 
-  WriteString(writer, {24, 4}, title, ToColor(0xffffff));
   DrawWindowTitle(writer, title, false);
 }
 
