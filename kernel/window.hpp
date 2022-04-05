@@ -16,12 +16,10 @@
  *
  * タイトルやメニューがあるウィンドウだけでなく，マウスカーソルの表示領域なども対象とする。
  */
-
 class Window {
  public:
   /** @brief WindowWriter は Window と関連付けられた PixelWriter を提供する。
    */
-
   class WindowWriter : public PixelWriter {
    public:
     WindowWriter(Window& window) : window_{window} {}
@@ -38,8 +36,7 @@ class Window {
     Window& window_;
   };
 
-  /** @brief 
-   * 指定されたピクセル数の平面描画領域を作成する。 */
+  /** @brief 指定されたピクセル数の平面描画領域を作成する。 */
   Window(int width, int height, PixelFormat shadow_format);
   virtual ~Window() = default;
   Window(const Window& rhs) = delete;
@@ -47,10 +44,9 @@ class Window {
 
   /** @brief 与えられた FrameBuffer にこのウィンドウの表示領域を描画する。
    *
-   * @param writer  描画先
+   * @param dst  描画先
    * @param pos  dst の左上を基準としたウィンドウの位置
    * @param area  dst の左上を基準とした描画対象範囲
-
    */
   void DrawTo(FrameBuffer& dst, Vector2D<int> pos, const Rectangle<int>& area);
   /** @brief 透過色を設定する。 */
@@ -77,6 +73,7 @@ class Window {
    * @param dst_pos   移動先の原点
    */
   void Move(Vector2D<int> dst_pos, const Rectangle<int>& src);
+
   virtual void Activate() {}
   virtual void Deactivate() {}
 

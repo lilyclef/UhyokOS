@@ -19,7 +19,6 @@
  * 現状では 1 つのウィンドウしか保持できない設計だが，
  * 将来的には複数のウィンドウを持ち得る。
  */
-
 class Layer {
  public:
   /** @brief 指定された ID を持つレイヤーを生成する。 */
@@ -33,7 +32,6 @@ class Layer {
   std::shared_ptr<Window> GetWindow() const;
   /** @brief レイヤーの原点座標を取得する。 */
   Vector2D<int> GetPosition() const;
-
   /** @brief true でレイヤーがドラッグ移動可能となる。 */
   Layer& SetDraggable(bool draggable);
   /** @brief レイヤーがドラッグ移動可能なら true を返す。 */
@@ -69,7 +67,7 @@ class LayerManager {
   void Draw(const Rectangle<int>& area) const;
   /** @brief 指定したレイヤーに設定されているウィンドウの描画領域内を再描画する。 */
   void Draw(unsigned int id) const;
-  /** @brief 指定したレイヤーに設定されているウィンドウ内の指定された範囲を再描画する。*/
+  /** @brief 指定したレイヤーに設定されているウィンドウ内の指定された範囲を再描画する。 */
   void Draw(unsigned int id, Rectangle<int> area) const;
 
   /** @brief レイヤーの位置情報を指定された絶対座標へと更新する。再描画する。 */
@@ -96,6 +94,7 @@ class LayerManager {
 
  private:
   FrameBuffer* screen_{nullptr};
+  mutable FrameBuffer back_buffer_{};
   std::vector<std::unique_ptr<Layer>> layers_{};
   std::vector<Layer*> layer_stack_{};
   unsigned int latest_id_{0};
@@ -103,7 +102,6 @@ class LayerManager {
 
 extern LayerManager* layer_manager;
 
-// [15.7]
 class ActiveLayer {
  public:
   ActiveLayer(LayerManager& manager);
@@ -124,8 +122,8 @@ void InitializeLayer();
 void ProcessLayerMessage(const Message& msg);
 
 constexpr Message MakeLayerMessage(
-  uint64_t task_id, unsigned int layer_id,
-  LayerOperation op, const Rectangle<int>& area) {
+    uint64_t task_id, unsigned int layer_id,
+    LayerOperation op, const Rectangle<int>& area) {
   Message msg{Message::kLayer, task_id};
   msg.arg.layer.layer_id = layer_id;
   msg.arg.layer.op = op;
