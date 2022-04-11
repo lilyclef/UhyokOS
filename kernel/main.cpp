@@ -29,6 +29,7 @@
 #include "keyboard.hpp"
 #include "task.hpp"
 #include "terminal.hpp"
+#include "fat.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -119,7 +120,8 @@ alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 extern "C" void KernelMainNewStack(
   const FrameBufferConfig& frame_buffer_config_ref,
   const MemoryMap& memory_map_ref,
-  const acpi::RSDP& acpi_table) {
+  const acpi::RSDP& acpi_table,
+  void* volume_image) {
   MemoryMap memory_map{memory_map_ref};
   InitializeGraphics(frame_buffer_config_ref);
   InitializeConsole();
@@ -129,6 +131,7 @@ extern "C" void KernelMainNewStack(
   InitializePaging();
   InitializeMemoryManager(memory_map);
   InitializeInterrupt();
+  fat::Initialize(volume_image);
   InitializePCI();
   InitializeLayer();
   InitializeMainWindow();
