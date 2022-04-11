@@ -297,3 +297,25 @@ mkfs.fat 4.2 (2021-01-31)
 ```
 - [File Allocation Table Wiki](https://en.wikipedia.org/wiki/File_Allocation_Table)
 - The current ls shows the name of volume which is set in osbook/devenv/make_image.sh
+
+## 2022/04/22
+- #18 Application
+```
+$ make
+nasm -f bin -o onlyhlt onlyhlt.asm
+$ hexdump -C onlyhlt
+00000000  f4 eb fd                                          |...|
+00000003
+$ objdump -D -m i386:x86-64 -b binary onlyhlt
+
+onlyhlt:     file format binary
+
+
+Disassembly of section .data:
+
+0000000000000000 <.data>:
+   0:	f4                   	hlt    
+   1:	eb fd                	jmp    0x0
+
+```
+- eb fd is relative short jump

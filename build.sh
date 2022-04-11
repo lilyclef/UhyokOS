@@ -9,9 +9,7 @@ do
   make ${MAKE_OPTS:-} -C $APP_DIR $APP
 done
 
-DISK_IMG=./disk.img MIKANOS_DIR=$PWD $HOME/osbook/devenv/make_mikanos_image.sh
-
 if [ "${1:-}" = "run" ]
 then
-  $HOME/osbook/devenv/run_image.sh ./disk.img
+  MIKANOS_DIR=$PWD $HOME/osbook/devenv/run_mikanos.sh
 fi
